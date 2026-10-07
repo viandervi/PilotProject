@@ -1,0 +1,24 @@
+plugins { id 'java'; id 'application' }
+repositories { mavenCentral() }
+dependencies {
+    annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.4'
+    implementation platform('io.micronaut.platform:micronaut-platform:4.9.4')
+    implementation 'io.micronaut:micronaut-runtime'
+    implementation 'io.micronaut:micronaut-http-server-netty'
+    implementation 'io.micronaut:micronaut-http-client'
+    implementation 'io.micronaut:micronaut-jackson-databind'
+    runtimeOnly 'ch.qos.logback:logback-classic'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+}
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+application { mainClass = 'com.creatorrx.Application' }
+test { useJUnitPlatform() }
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-parameters']
+}
+dependencies { testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.12.2' }
+tasks.withType(JavaExec).configureEach {
+    if (file('/etc/ssl/certs/java/cacerts').exists()) {
+        jvmArgs '-Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts'
+    }
+}
