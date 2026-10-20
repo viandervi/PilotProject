@@ -1,6 +1,7 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 /** Queues one active CHANNEL_SYNC per channel. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class ChannelSyncQueue {
     private final DataSource datasource;
     public ChannelSyncQueue(DataSource datasource) { this.datasource = datasource; }
