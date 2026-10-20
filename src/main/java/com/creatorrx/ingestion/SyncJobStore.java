@@ -1,6 +1,7 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 
 import javax.sql.DataSource;
@@ -25,6 +26,7 @@ public class SyncJobStore {
 
     public record Claim(UUID id, UUID channelId, String syncType, UUID leaseToken, int attempt) {}
 
+    @Connectable
     public Optional<Claim> claimNext(Duration leaseDuration) throws SQLException {
         if (leaseDuration.isNegative() || leaseDuration.isZero()) throw new IllegalArgumentException("leaseDuration");
         String sql = """
