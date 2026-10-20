@@ -22,8 +22,14 @@ public class RecommendationSignalRepository {
 
     public List<VideoSignal> load(UUID creator, UUID channel, LocalDate asOf) throws Exception {
         String sql = """
-            WITH base AS (
-                SELECT v.id, v.published_at, v.youtube_video_id,
+            WITH retention AS (
+                SELECT video_id, AVG(audience_watch_ratio)::double precision AS early_retention
+                FROM video_retention_point
+                WHERE period_end <= ?::date AND period_end >= ?::date - 90
+                  AND elapsed_ratio BETWEEN 0.10 AND 0.30
+                GROUP BY video_id
+            ), base AS (
+                SELECT v.id, v.published_at, v.youtube_video_id, r.early_retention,
                        COALESCE(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date), 0) AS recent_views,
                        COALESCE(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 55 AND ?::date - 28), 0) AS previous_views,
                        COUNT(DISTINCT m.metric_date) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date) AS observed_days,
@@ -34,16 +40,16 @@ public class RecommendationSignalRepository {
                             WHEN v.published_at::date > ?::date - 365 THEN 'ESTABLISHED'
                             ELSE 'EVERGREEN' END AS cohort
                 FROM video v
-                LEFT JOIN video_daily_metric m ON m.video_id = v.id
+                LEFT JOIN video_daily_metric m ON m.video_id = v.id\n                LEFT JOIN retention r ON r.video_id = v.id
                 WHERE v.channel_id = ?
-                GROUP BY v.id
+                GROUP BY v.id, r.early_retention
             ), peers AS (
                 SELECT b.*, (SUM(b.avg_percentage) OVER (PARTITION BY b.cohort) - COALESCE(b.avg_percentage,0)) /\n                    NULLIF(COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) - CASE WHEN b.avg_percentage IS NULL THEN 0 ELSE 1 END, 0) AS peer_avg,
-                    COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_count
+                    COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_count,\n                    (SUM(b.early_retention) OVER (PARTITION BY b.cohort) - COALESCE(b.early_retention,0)) /\n                    NULLIF(COUNT(b.early_retention) OVER (PARTITION BY b.cohort) - CASE WHEN b.early_retention IS NULL THEN 0 ELSE 1 END, 0) AS peer_early,\n                    COUNT(b.early_retention) OVER (PARTITION BY b.cohort) AS early_peer_count
                 FROM base b
             )
             SELECT id, published_at, recent_views, previous_views, observed_days,
-                   avg_percentage, CASE WHEN peer_count >= 6 THEN peer_avg ELSE NULL END AS cohort_avg
+                   avg_percentage, CASE WHEN peer_count >= 6 THEN peer_avg ELSE NULL END AS cohort_avg,\n                   early_retention, CASE WHEN early_peer_count >= 6 THEN peer_early ELSE NULL END AS cohort_early
             FROM peers ORDER BY id
             """;
         var result = new ArrayList<VideoSignal>();
@@ -66,7 +72,7 @@ public class RecommendationSignalRepository {
                             published == null ? null : published.toInstant().atZone(ZoneOffset.UTC).toLocalDate(),
                             rows.getLong("recent_views"), rows.getLong("previous_views"),
                             nullableDouble(rows, "avg_percentage"), nullableDouble(rows, "cohort_avg"),
-                            null, null, rows.getInt("observed_days")));
+                            nullableDouble(rows, "early_retention"), nullableDouble(rows, "cohort_early"), rows.getInt("observed_days")));
                     }
                 }
             }
