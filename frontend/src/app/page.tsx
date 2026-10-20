@@ -3,15 +3,24 @@ import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
 import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic } from "@/lib/api";
 
-// Accept ISO dates and compact dates emitted by some LocalDate serializers.
-function formatAnalyticsDate(value: string | null | undefined): string {
-  if (!value) return "none";
-  const normalized = value.replace(/-/g, "");
-  const match = /^([0-9]{4})([0-9]{1,2})([0-9]{1,2})$/.exec(normalized);
-  if (!match) return value;
-  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+// Jackson can serialize LocalDate as [year, month, day]; also accept ISO strings.
+function formatAnalyticsDate(value: string | number[] | null | undefined): string {
+  if (value == null) return "none";
+  let parts: number[];
+  if (Array.isArray(value)) {
+    if (value.length !== 3 || !value.every(Number.isInteger)) return "unknown";
+    parts = value;
+  } else if (typeof value === "string") {
+    const iso = /^([0-9]{4})-([0-9]{1,2})-([0-9]{1,2})$/.exec(value);
+    if (!iso) return value;
+    parts = iso.slice(1).map(Number);
+  } else {
+    return "unknown";
+  }
+  const [year, month, day] = parts;
+  if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 || day > 31) return "unknown";
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return value;
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "unknown";
   return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
