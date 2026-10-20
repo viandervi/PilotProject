@@ -118,6 +118,7 @@ export default function Home() {
             <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
               <h3 className="mb-3 font-semibold">Data readiness</h3>
               <p className="mb-3 text-sm text-slate-400">Analytics: {coverage?.videosWithDailyMetrics ?? 0}/{coverage?.videos ?? 0} videos · Retention: {coverage?.videosWithRetention ?? 0}/{coverage?.videos ?? 0} videos</p>
+              <p className="mb-3 text-xs text-slate-400">Historical daily data: {coverage?.earliestDailyMetric ?? "none"} to {coverage?.latestDailyMetric ?? "none"} · Completed historical ranges: {coverage?.fetchedHistoricalRanges ?? 0} (including empty responses)</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {(["CHANNEL_SYNC", "ANALYTICS_SYNC", "RETENTION_SYNC"] as const).map(type => {
                   const job = jobs.find(j => j.syncType === type);
