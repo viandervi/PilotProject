@@ -55,7 +55,7 @@ public class GoogleGateway {
         return "https://accounts.google.com/o/oauth2/v2/auth?" + query(Map.of(
             "client_id", clientId, "redirect_uri", redirect(), "response_type", "code", "state", state,
             "scope", "openid https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly",
-            "access_type", "offline", "prompt", "consent", "nonce", nonce, "code_challenge", challenge, "code_challenge_method", "S256"));
+            "access_type", "offline", "prompt", "select_account consent", "nonce", nonce, "code_challenge", challenge, "code_challenge_method", "S256"));
     }
     public synchronized void callback(String state, String code) throws Exception {
         Pending login = pending.remove(state);
