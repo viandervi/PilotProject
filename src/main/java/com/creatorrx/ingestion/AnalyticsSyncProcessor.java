@@ -3,6 +3,7 @@ package com.creatorrx.ingestion;
 import com.creatorrx.auth.CreatorGoogleApiClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.time.LocalDate;
@@ -12,6 +13,7 @@ import java.util.UUID;
 /** Bounded per-video Analytics backfill with lease-guarded progress. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class AnalyticsSyncProcessor implements SyncJobProcessor {
     private final DataSource datasource;
     private final CreatorGoogleApiClient google;
