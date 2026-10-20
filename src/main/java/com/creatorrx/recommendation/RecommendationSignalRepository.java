@@ -1,6 +1,7 @@
 package com.creatorrx.recommendation;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.sql.ResultSet;
@@ -16,6 +17,7 @@ import java.util.UUID;
  */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class RecommendationSignalRepository {
     private final DataSource datasource;
     public RecommendationSignalRepository(DataSource datasource) { this.datasource = datasource; }
