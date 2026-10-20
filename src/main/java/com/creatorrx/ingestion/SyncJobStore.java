@@ -25,6 +25,36 @@ public class SyncJobStore {
         this.dataSource = dataSource;
     }
 
+
+    /** Creator-scoped status of the most recent job of each supported sync type. */
+    public record JobStatus(UUID id, String syncType, String status, int progressItems,
+                            int attempts, String errorCode, String errorMessage) {}
+
+    public java.util.List<JobStatus> latestForCreator(UUID creatorId, UUID channelId) throws SQLException {
+        String sql = """
+            SELECT DISTINCT ON (s.sync_type) s.id, s.sync_type, s.status,
+                   s.progress_items, s.attempts, s.error_code, s.error_message
+            FROM sync_run s
+            JOIN youtube_channel c ON c.id = s.channel_id
+            WHERE c.creator_id = ? AND s.channel_id = ?
+              AND s.sync_type IN ('CHANNEL_SYNC', 'ANALYTICS_SYNC', 'RETENTION_SYNC')
+            ORDER BY s.sync_type, s.created_at DESC, s.id DESC
+            """;
+        var result = new java.util.ArrayList<JobStatus>();
+        try (var connection = dataSource.getConnection(); var stmt = connection.prepareStatement(sql)) {
+            stmt.setObject(1, creatorId);
+            stmt.setObject(2, channelId);
+            try (var rows = stmt.executeQuery()) {
+                while (rows.next()) result.add(new JobStatus(
+                    rows.getObject("id", UUID.class), rows.getString("sync_type"),
+                    rows.getString("status"), rows.getInt("progress_items"),
+                    rows.getInt("attempts"), rows.getString("error_code"),
+                    rows.getString("error_message")));
+            }
+        }
+        return result;
+    }
+
     public record Claim(UUID id, UUID channelId, String syncType, UUID leaseToken, int attempt) {}
 
     public Optional<Claim> claimNext(Duration leaseDuration) throws SQLException {

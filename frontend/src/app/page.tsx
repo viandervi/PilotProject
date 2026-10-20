@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
-import { api, type Action, type Channel, type Overview, type Video } from "@/lib/api";
+import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage } from "@/lib/api";
 
 type View = "overview" | "videos" | "actions";
 export default function Home() {
@@ -10,6 +10,9 @@ export default function Home() {
   const [channel, setChannel] = useState<Channel | null>(null);
   const [actions, setActions] = useState<Action[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
+  const [jobs, setJobs] = useState<SyncJob[]>([]);
+  const [coverage, setCoverage] = useState<AnalyticsCoverage | null>(null);
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -23,12 +26,14 @@ export default function Home() {
       const first = summary.channels[0] ?? null;
       setChannel(first);
       if (first) {
-        const [nextActions, nextVideos] = await Promise.all([
+        const [nextActions, nextVideos, nextJobs, nextCoverage] = await Promise.all([
           api<Action[]>(`/channels/${first.id}/recommendation-actions`),
           api<Video[]>(`/channels/${first.id}/dashboard-videos`),
+          api<SyncJob[]>(`/channels/${first.id}/sync-status`),
+          api<AnalyticsCoverage>(`/channels/${first.id}/analytics-coverage`),
         ]);
-        setActions(nextActions); setVideos(nextVideos);
-      } else { setActions([]); setVideos([]); }
+        setActions(nextActions); setVideos(nextVideos); setJobs(nextJobs); setCoverage(nextCoverage);
+      } else { setActions([]); setVideos([]); setJobs([]); setCoverage(null); }
       setUnauthorized(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load dashboard";
@@ -51,18 +56,23 @@ export default function Home() {
   }
   async function refreshRecommendations() {
     if (!channel) return;
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setNotice("");
     try {
       await api<Action[]>(`/channels/${channel.id}/recommendations/refresh`, { method: "POST" });
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Refresh failed"); }
     finally { setBusy(false); }
   }
-  async function sync() {
-    setBusy(true); setError("");
+  async function sync(kind: "videos" | "analytics" | "retention" = "videos") {
+    setBusy(true); setError(""); setNotice("");
     try {
-      await api("/channels/sync", { method: "POST" });
-      setError("Video sync queued. Reload after the job completes.");
+      const endpoint = kind === "videos" ? "/channels/sync" : kind === "analytics" ? "/channels/analytics-sync" : "/channels/retention-sync";
+      await api(endpoint, { method: "POST" });
+      setNotice(`${kind === "videos" ? "Video" : kind === "analytics" ? "Analytics" : "Retention"} sync queued. Reload to check job progress.`);
+      if (channel) {
+        const nextJobs = await api<SyncJob[]>(`/channels/${channel.id}/sync-status`);
+        setJobs(nextJobs);
+      }
     } catch (e) { setError(e instanceof Error ? e.message : "Sync failed"); }
     finally { setBusy(false); }
   }
@@ -82,6 +92,7 @@ export default function Home() {
         <div><p className="mb-1 text-sm text-slate-400">Creator intelligence</p><h2 className="text-3xl font-bold capitalize">{view === "actions" ? "Recommendations" : view}</h2><p className="mt-2 text-sm text-slate-400">{channel?.title || "Connect a YouTube channel to get started"}</p></div>
         <button onClick={() => void load()} disabled={loading || busy} className="flex items-center gap-2 rounded-lg border border-slate-700 px-4 py-2 text-sm hover:bg-slate-800"><RefreshCw size={16}/> Reload</button>
       </header>
+      {notice && <div role="status" className="mb-6 rounded-xl border border-cyan-700/50 bg-cyan-900/20 p-4 text-sm text-cyan-200">{notice}</div>}
       {error && <div role="alert" className="mb-6 rounded-xl border border-amber-700/50 bg-amber-900/20 p-4 text-sm text-amber-200">{error}</div>}
       {loading ? <p className="text-slate-400">Loading your channel data…</p> :
         unauthorized ? <div className="rounded-xl border border-slate-700 bg-slate-900 p-8"><h3 className="mb-3 text-xl font-semibold">Connect your YouTube account</h3><p className="mb-6 text-slate-400">CreatorRx uses your Google account to securely access your channel analytics.</p><a href="/auth/google" className="inline-block rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950">Connect YouTube</a></div> :
@@ -90,13 +101,34 @@ export default function Home() {
           {view === "overview" && <>
             <section className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {[
-                { title:"Videos analyzed",value:overview?.totalVideos ?? 0,Icon:VideoIcon },
+                { title:"Videos synced",value:overview?.totalVideos ?? 0,Icon:VideoIcon },
                 { title:"Needs fixing",value:fix,Icon:Wrench },
                 { title:"Revival opportunities",value:revive,Icon:TrendingUp },
                 { title:"Actions applied",value:overview?.applied ?? 0,Icon:CheckCircle2 },
               ].map(({title,value,Icon}) => <div key={title} className="rounded-xl border border-slate-800 bg-slate-900 p-5"><div className="mb-4 flex justify-between text-sm text-slate-400"><span>{title}</span><Icon size={18}/></div><div className="text-3xl font-bold">{value}</div></div>)}
             </section>
-            <div className="mb-8 flex flex-wrap gap-3"><button onClick={() => void refreshRecommendations()} disabled={busy} className="rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950">Analyze recommendations</button><button onClick={() => void sync()} disabled={busy} className="rounded-lg border border-slate-700 px-5 py-3">Sync videos</button></div>
+            <div className="mb-6 flex flex-wrap gap-3">
+              <button onClick={() => void sync("videos")} disabled={busy} className="rounded-lg border border-slate-700 px-5 py-3">Sync videos</button>
+              <button onClick={() => void sync("analytics")} disabled={busy || videos.length === 0} className="rounded-lg border border-slate-700 px-5 py-3 disabled:opacity-50">Sync analytics</button>
+              <button onClick={() => void sync("retention")} disabled={busy || videos.length === 0} className="rounded-lg border border-slate-700 px-5 py-3 disabled:opacity-50">Sync retention</button>
+              <button onClick={() => void refreshRecommendations()} disabled={busy || !coverage || coverage.videosWithDailyMetrics === 0} className="rounded-lg bg-cyan-500 px-5 py-3 font-semibold text-slate-950 disabled:opacity-50">Analyze recommendations</button>
+            </div>
+            <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h3 className="mb-3 font-semibold">Data readiness</h3>
+              <p className="mb-3 text-sm text-slate-400">Analytics: {coverage?.videosWithDailyMetrics ?? 0}/{coverage?.videos ?? 0} videos · Retention: {coverage?.videosWithRetention ?? 0}/{coverage?.videos ?? 0} videos</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(["CHANNEL_SYNC", "ANALYTICS_SYNC", "RETENTION_SYNC"] as const).map(type => {
+                  const job = jobs.find(j => j.syncType === type);
+                  return <div key={type} className="rounded-lg border border-slate-700 p-3 text-sm">
+                    <p className="text-slate-400">{type === "CHANNEL_SYNC" ? "Video sync" : type === "ANALYTICS_SYNC" ? "Analytics sync" : "Retention sync"}</p>
+                    <p className="mt-1 font-semibold">{job?.status.replace("_", " ") ?? "Not started"}</p>
+                    {job && <p className="mt-1 text-xs text-slate-400">{job.progressItems} items processed</p>}
+                    {job?.errorCode && <p className="mt-1 text-xs text-amber-300">{job.errorCode}{job.errorMessage ? `: ${job.errorMessage}` : ""}</p>}
+                  </div>;
+                })}
+              </div>
+              <p className="mt-3 text-xs text-slate-400">Reload to refresh sync progress. Recommendations require analytics data; retention improves signal quality.</p>
+            </section>
             <h3 className="mb-4 text-xl font-semibold">Priority actions</h3>
             <ActionList actions={openActions.slice(0,5)} videos={videos} busy={busy} changeStatus={changeStatus}/>
           </>}

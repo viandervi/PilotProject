@@ -20,6 +20,7 @@ public class CreatorApiController {
     private final CreatorTokenProvider tokens;
     private final com.creatorrx.ingestion.ChannelDiscoveryService discovery;
     private final com.creatorrx.ingestion.ChannelSyncQueue queue;
+    private final com.creatorrx.ingestion.SyncJobStore syncJobs;
     private final com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue;
     private final com.creatorrx.ingestion.RetentionSyncQueue retentionQueue;
     private final com.creatorrx.ingestion.AnalyticsDataQualityService quality;
@@ -28,6 +29,7 @@ public class CreatorApiController {
     public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens,
                                 com.creatorrx.ingestion.ChannelDiscoveryService discovery,
                                 com.creatorrx.ingestion.ChannelSyncQueue queue,
+                                com.creatorrx.ingestion.SyncJobStore syncJobs,
                                 com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue,
                                 com.creatorrx.ingestion.RetentionSyncQueue retentionQueue,
                                 com.creatorrx.ingestion.AnalyticsDataQualityService quality,
@@ -35,7 +37,7 @@ public class CreatorApiController {
                                 com.creatorrx.recommendation.RecommendationActionStore actions,
                                 com.creatorrx.dashboard.DashboardQueryService dashboard) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
-        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations; this.actions = actions; this.dashboard = dashboard;
+        this.discovery = discovery; this.queue = queue; this.syncJobs = syncJobs; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations; this.actions = actions; this.dashboard = dashboard;
     }
 
     @Get("/dashboard/overview")
@@ -98,6 +100,13 @@ public class CreatorApiController {
         UUID channel = discovery.discover(creator);
         UUID job = retentionQueue.enqueue(creator, channel);
         return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
+    }
+
+    @Get("/channels/{channelId}/sync-status")
+    public java.util.List<com.creatorrx.ingestion.SyncJobStore.JobStatus> syncStatus(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId) throws Exception {
+        return syncJobs.latestForCreator(sessions.requireCreator(session), channelId);
     }
 
     @Get("/channels/{channelId}/analytics-coverage")
