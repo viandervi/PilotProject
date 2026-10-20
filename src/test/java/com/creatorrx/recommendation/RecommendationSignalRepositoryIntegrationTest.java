@@ -46,7 +46,9 @@ class RecommendationSignalRepositoryIntegrationTest {
             }
             var repository = new RecommendationSignalRepository(ds);
             assertThrows(SecurityException.class,()->repository.load(outsider,channel,date));
-            java.util.List<VideoSignal> signals;\n            try { signals=repository.load(creator,channel,date); }\n            catch (java.sql.SQLException e) { System.err.println("Recommendation SQL failure: state="+e.getSQLState()+" message="+e.getMessage()); throw e; }
+            java.util.List<VideoSignal> signals;
+            try { signals=repository.load(creator,channel,date); }
+            catch (java.sql.SQLException e) { System.err.println("Recommendation SQL failure: state="+e.getSQLState()+" message="+e.getMessage()); throw e; }
             assertEquals(6,signals.size());
             var low=signals.stream().filter(s->s.averageViewPercentage()!=null && s.averageViewPercentage()<30).findFirst().orElseThrow();
             assertEquals(60.0,low.cohortAverageViewPercentage(),0.01);
