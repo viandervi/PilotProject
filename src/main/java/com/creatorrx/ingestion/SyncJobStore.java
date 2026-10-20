@@ -30,9 +30,9 @@ public class SyncJobStore {
         String sql = """
             WITH candidate AS (
                 SELECT id FROM sync_run
-                WHERE (status IN ('PENDING', 'RETRY_WAIT') AND next_attempt_at <= now())
-                   OR (status = 'RUNNING' AND lease_until < now())
-                AND attempts < max_attempts
+                WHERE ((status IN ('PENDING', 'RETRY_WAIT') AND next_attempt_at <= now())
+                   OR (status = 'RUNNING' AND lease_until < now()))
+                  AND attempts < max_attempts
                 ORDER BY created_at, id
                 FOR UPDATE SKIP LOCKED
                 LIMIT 1
