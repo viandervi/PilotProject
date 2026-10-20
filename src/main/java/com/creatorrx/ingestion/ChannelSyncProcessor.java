@@ -3,6 +3,7 @@ package com.creatorrx.ingestion;
 import com.creatorrx.auth.CreatorGoogleApiClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.time.Instant;
@@ -12,6 +13,7 @@ import java.util.UUID;
 /** Fetches the owned channel's uploads playlist with resumable page checkpoints. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class ChannelSyncProcessor implements SyncJobProcessor {
     private final DataSource datasource;
     private final CreatorGoogleApiClient google;
