@@ -1,6 +1,7 @@
 plugins { id 'java'; id 'application' }
 repositories { mavenCentral() }
 dependencies {
+    annotationProcessor platform('io.micronaut.platform:micronaut-platform:4.9.4')
     annotationProcessor 'io.micronaut:micronaut-inject-java:4.9.4'
     annotationProcessor 'io.micronaut.data:micronaut-data-processor'
     implementation platform('io.micronaut.platform:micronaut-platform:4.9.4')
@@ -15,6 +16,9 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
     runtimeOnly 'ch.qos.logback:logback-classic'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.12.2'
+    testImplementation 'org.testcontainers:postgresql:1.21.3'
+    testImplementation 'org.flywaydb:flyway-core'
+    testImplementation 'org.postgresql:postgresql'
 }
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 application { mainClass = 'com.creatorrx.Application' }
