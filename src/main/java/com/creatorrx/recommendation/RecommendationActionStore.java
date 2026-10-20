@@ -2,6 +2,7 @@ package com.creatorrx.recommendation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -10,6 +11,7 @@ import java.util.UUID;
 
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class RecommendationActionStore {
     private final DataSource dataSource;
     private final ObjectMapper mapper;
