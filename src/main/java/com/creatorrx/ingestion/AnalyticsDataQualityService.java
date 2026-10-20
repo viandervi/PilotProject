@@ -17,8 +17,8 @@ public class AnalyticsDataQualityService {
 
     public Coverage coverage(UUID creator, UUID channel) throws Exception {
         String sql = """
-            SELECT COUNT(*) AS videos,
-                COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM video_daily_metric m WHERE m.video_id=v.id)) AS daily_videos,
+            SELECT COUNT(v.id) AS videos,
+                COUNT(v.id) FILTER (WHERE EXISTS (SELECT 1 FROM video_daily_metric m WHERE m.video_id=v.id)) AS daily_videos,
                 COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM video_retention_point r WHERE r.video_id=v.id)) AS retention_videos,
                 COALESCE(SUM((SELECT COUNT(*) FROM video_daily_metric m WHERE m.video_id=v.id)),0) AS daily_rows,
                 COALESCE(SUM((SELECT COUNT(*) FROM video_retention_point r WHERE r.video_id=v.id)),0) AS retention_rows
