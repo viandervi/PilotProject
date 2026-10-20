@@ -38,7 +38,8 @@ public class SyncJobWorker {
                 return;
             }
             try {
-                processor.get().process(job.channelId());
+                if (processor.get() instanceof ChannelSyncProcessor channelSync) channelSync.process(job);
+                else processor.get().process(job.channelId());
                 if (!store.complete(job)) LOG.warn("Lost sync lease before completion: {}", job.id());
             } catch (Exception failure) {
                 // Failures are retryable by default; auth/validation exceptions need classification by future processors.
