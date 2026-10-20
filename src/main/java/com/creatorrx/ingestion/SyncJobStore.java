@@ -60,6 +60,32 @@ public class SyncJobStore {
         }
     }
 
+    public String cursor(Claim claim) throws SQLException {
+        try (var connection = dataSource.getConnection();
+             var stmt = connection.prepareStatement(
+                "SELECT page_cursor FROM sync_run WHERE id = ? AND lease_token = ? AND status = 'RUNNING' AND lease_until > now()")) {
+            stmt.setObject(1, claim.id()); stmt.setObject(2, claim.leaseToken());
+            try (var rows = stmt.executeQuery()) {
+                if (!rows.next()) throw new IllegalStateException("Lost sync lease");
+                return rows.getString(1);
+            }
+        }
+    }
+
+    public boolean checkpoint(Claim claim, String nextPage, int items) throws SQLException {
+        if (items < 0) throw new IllegalArgumentException("items");
+        String sql = """
+            UPDATE sync_run SET page_cursor = ?, progress_items = progress_items + ?,
+                lease_until = now() + INTERVAL '10 minutes', updated_at = now()
+            WHERE id = ? AND lease_token = ? AND status = 'RUNNING' AND lease_until > now()
+            """;
+        try (var connection = dataSource.getConnection(); var stmt = connection.prepareStatement(sql)) {
+            stmt.setString(1, nextPage); stmt.setInt(2, items);
+            stmt.setObject(3, claim.id()); stmt.setObject(4, claim.leaseToken());
+            return stmt.executeUpdate() == 1;
+        }
+    }
+
     public boolean complete(Claim claim) throws SQLException {
         return transition(claim, "COMPLETED", null, null, null);
     }
