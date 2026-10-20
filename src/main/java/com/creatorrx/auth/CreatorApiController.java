@@ -23,15 +23,17 @@ public class CreatorApiController {
     private final com.creatorrx.ingestion.RetentionSyncQueue retentionQueue;
     private final com.creatorrx.ingestion.AnalyticsDataQualityService quality;
     private final com.creatorrx.recommendation.RecommendationService recommendations;
+    private final com.creatorrx.recommendation.RecommendationActionStore actions;
     public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens,
                                 com.creatorrx.ingestion.ChannelDiscoveryService discovery,
                                 com.creatorrx.ingestion.ChannelSyncQueue queue,
                                 com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue,
                                 com.creatorrx.ingestion.RetentionSyncQueue retentionQueue,
                                 com.creatorrx.ingestion.AnalyticsDataQualityService quality,
-                                com.creatorrx.recommendation.RecommendationService recommendations) {
+                                com.creatorrx.recommendation.RecommendationService recommendations,
+                                com.creatorrx.recommendation.RecommendationActionStore actions) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
-        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations;
+        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations; this.actions = actions;
     }
 
     @Get("/me")
@@ -95,6 +97,39 @@ public class CreatorApiController {
             @CookieValue(value="creatorrx_session", defaultValue="") String session,
             @PathVariable UUID channelId) throws Exception {
         return recommendations.forChannel(sessions.requireCreator(session), channelId);
+    }
+
+
+    @Post("/channels/{channelId}/recommendations/refresh")
+    public java.util.List<com.creatorrx.recommendation.RecommendationActionStore.Action> refreshRecommendations(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId) throws Exception {
+        UUID creator = sessions.requireCreator(session);
+        actions.save(creator, channelId, recommendations.forChannel(creator, channelId));
+        return actions.list(creator, channelId);
+    }
+
+    @Get("/channels/{channelId}/recommendation-actions")
+    public java.util.List<com.creatorrx.recommendation.RecommendationActionStore.Action> recommendationActions(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId) throws Exception {
+        return actions.list(sessions.requireCreator(session), channelId);
+    }
+
+    public record StatusUpdate(String status) {}
+
+    @Patch("/channels/{channelId}/recommendation-actions/{videoId}")
+    public HttpResponse<?> updateRecommendationStatus(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId, @PathVariable UUID videoId,
+            @Body StatusUpdate update) throws Exception {
+        if (update == null || update.status() == null)
+            return HttpResponse.badRequest();
+        String status = update.status().toUpperCase(java.util.Locale.ROOT);
+        if (!java.util.List.of("OPEN","APPLIED","DISMISSED").contains(status))
+            return HttpResponse.badRequest();
+        boolean changed = actions.updateStatus(sessions.requireCreator(session), channelId, videoId, status);
+        return changed ? HttpResponse.noContent() : HttpResponse.notFound();
     }
 
     @Post("/disconnect")
