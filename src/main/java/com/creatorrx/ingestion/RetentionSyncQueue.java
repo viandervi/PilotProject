@@ -1,6 +1,7 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 /** Enqueues only channels owned by the authenticated creator. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class RetentionSyncQueue {
     private final DataSource datasource;
     public RetentionSyncQueue(DataSource datasource) { this.datasource = datasource; }

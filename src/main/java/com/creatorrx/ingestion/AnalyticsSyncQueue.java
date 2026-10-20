@@ -1,12 +1,14 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
 
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class AnalyticsSyncQueue {
     private final DataSource datasource;
     public AnalyticsSyncQueue(DataSource datasource) { this.datasource = datasource; }
