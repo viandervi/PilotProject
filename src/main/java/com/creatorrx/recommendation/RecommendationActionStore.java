@@ -75,7 +75,7 @@ public class RecommendationActionStore {
             stmt.setObject(1,channel); stmt.setObject(2,creator);
             try (var rows=stmt.executeQuery()) {
                 while(rows.next()) {
-                    var reasons=mapper.readValue(rows.getString("reasons"),
+                    List<String> reasons=mapper.readValue(rows.getString("reasons"),
                             mapper.getTypeFactory().constructCollectionType(List.class,String.class));
                     actions.add(new Action(rows.getObject("video_id",UUID.class),
                             rows.getString("decision"),rows.getDouble("score"),
