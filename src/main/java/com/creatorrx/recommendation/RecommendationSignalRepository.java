@@ -40,16 +40,22 @@ public class RecommendationSignalRepository {
                             WHEN v.published_at::date > ?::date - 365 THEN 'ESTABLISHED'
                             ELSE 'EVERGREEN' END AS cohort
                 FROM video v
-                LEFT JOIN video_daily_metric m ON m.video_id = v.id\n                LEFT JOIN retention r ON r.video_id = v.id
+                LEFT JOIN video_daily_metric m ON m.video_id = v.id
+                LEFT JOIN retention r ON r.video_id = v.id
                 WHERE v.channel_id = ?
                 GROUP BY v.id, r.early_retention
             ), peers AS (
-                SELECT b.*, (SUM(b.avg_percentage) OVER (PARTITION BY b.cohort) - COALESCE(b.avg_percentage,0)) /\n                    NULLIF(COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) - CASE WHEN b.avg_percentage IS NULL THEN 0 ELSE 1 END, 0) AS peer_avg,
-                    COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_count,\n                    (SUM(b.early_retention) OVER (PARTITION BY b.cohort) - COALESCE(b.early_retention,0)) /\n                    NULLIF(COUNT(b.early_retention) OVER (PARTITION BY b.cohort) - CASE WHEN b.early_retention IS NULL THEN 0 ELSE 1 END, 0) AS peer_early,\n                    COUNT(b.early_retention) OVER (PARTITION BY b.cohort) AS early_peer_count
+                SELECT b.*, (SUM(b.avg_percentage) OVER (PARTITION BY b.cohort) - COALESCE(b.avg_percentage,0)) /
+                    NULLIF(COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) - CASE WHEN b.avg_percentage IS NULL THEN 0 ELSE 1 END, 0) AS peer_avg,
+                    COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_count,
+                    (SUM(b.early_retention) OVER (PARTITION BY b.cohort) - COALESCE(b.early_retention,0)) /
+                    NULLIF(COUNT(b.early_retention) OVER (PARTITION BY b.cohort) - CASE WHEN b.early_retention IS NULL THEN 0 ELSE 1 END, 0) AS peer_early,
+                    COUNT(b.early_retention) OVER (PARTITION BY b.cohort) AS early_peer_count
                 FROM base b
             )
             SELECT id, published_at, recent_views, previous_views, observed_days,
-                   avg_percentage, CASE WHEN peer_count >= 6 THEN peer_avg ELSE NULL END AS cohort_avg,\n                   early_retention, CASE WHEN early_peer_count >= 6 THEN peer_early ELSE NULL END AS cohort_early
+                   avg_percentage, CASE WHEN peer_count >= 6 THEN peer_avg ELSE NULL END AS cohort_avg,
+                   early_retention, CASE WHEN early_peer_count >= 6 THEN peer_early ELSE NULL END AS cohort_early
             FROM peers ORDER BY id
             """;
         var result = new ArrayList<VideoSignal>();
@@ -80,7 +86,12 @@ public class RecommendationSignalRepository {
         return List.copyOf(result);
     }
 
-    private static Long nullableLong(ResultSet rows, String name) throws Exception {\n        long value = rows.getLong(name);\n        return rows.wasNull() ? null : value;\n    }\n\n    private static Double nullableDouble(ResultSet rows, String name) throws Exception {
+    private static Long nullableLong(ResultSet rows, String name) throws Exception {
+        long value = rows.getLong(name);
+        return rows.wasNull() ? null : value;
+    }
+
+    private static Double nullableDouble(ResultSet rows, String name) throws Exception {
         double value = rows.getDouble(name);
         return rows.wasNull() ? null : value;
     }
