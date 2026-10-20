@@ -36,8 +36,8 @@ public class RecommendationSignalRepository {
                        SUM(m.average_view_percentage * m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date)
                           / NULLIF(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date), 0) AS avg_percentage,
                        CASE WHEN v.published_at IS NULL THEN NULL
-                            WHEN v.published_at::date > ?::date - 90 THEN 'NEW'
-                            WHEN v.published_at::date > ?::date - 365 THEN 'ESTABLISHED'
+                            WHEN CAST(v.published_at AS date) > ?::date - 90 THEN 'NEW'
+                            WHEN CAST(v.published_at AS date) > ?::date - 365 THEN 'ESTABLISHED'
                             ELSE 'EVERGREEN' END AS cohort
                 FROM video v
                 LEFT JOIN video_daily_metric m ON m.video_id = v.id
