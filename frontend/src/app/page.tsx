@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
-import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic } from "@/lib/api";
+import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic, type PerformanceDiagnosis } from "@/lib/api";
 
 // Jackson can serialize LocalDate as [year, month, day]; also accept ISO strings.
 function formatAnalyticsDate(value: string | number[] | null | undefined): string {
@@ -33,6 +33,7 @@ export default function Home() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [jobs, setJobs] = useState<SyncJob[]>([]);
   const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+  const [performanceDiagnoses, setPerformanceDiagnoses] = useState<PerformanceDiagnosis[]>([]);
   const [coverage, setCoverage] = useState<AnalyticsCoverage | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -48,15 +49,16 @@ export default function Home() {
       const first = summary.channels[0] ?? null;
       setChannel(first);
       if (first) {
-        const [nextActions, nextVideos, nextJobs, nextCoverage, nextDiagnostics] = await Promise.all([
+        const [nextActions, nextVideos, nextJobs, nextCoverage, nextDiagnostics, nextPerformanceDiagnoses] = await Promise.all([
           api<Action[]>(`/channels/${first.id}/recommendation-actions`),
           api<Video[]>(`/channels/${first.id}/dashboard-videos`),
           api<SyncJob[]>(`/channels/${first.id}/sync-status`),
           api<AnalyticsCoverage>(`/channels/${first.id}/analytics-coverage`),
           api<Diagnostic[]>(`/channels/${first.id}/recommendation-diagnostics`),
+          api<PerformanceDiagnosis[]>(`/channels/${first.id}/performance-diagnoses`),
         ]);
-        setActions(nextActions); setVideos(nextVideos); setJobs(nextJobs); setCoverage(nextCoverage); setDiagnostics(nextDiagnostics);
-      } else { setActions([]); setVideos([]); setJobs([]); setCoverage(null); setDiagnostics([]); }
+        setActions(nextActions); setVideos(nextVideos); setJobs(nextJobs); setCoverage(nextCoverage); setDiagnostics(nextDiagnostics); setPerformanceDiagnoses(nextPerformanceDiagnoses);
+      } else { setActions([]); setVideos([]); setJobs([]); setCoverage(null); setDiagnostics([]); setPerformanceDiagnoses([]); }
       setUnauthorized(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load dashboard";
@@ -157,6 +159,24 @@ export default function Home() {
             <ActionList actions={openActions.slice(0,5)} videos={videos} busy={busy} changeStatus={changeStatus}/>
           </>}
           {view === "actions" && <><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-400">Recommendations are ranked by estimated impact.</p><button onClick={() => void refreshRecommendations()} disabled={busy} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">Refresh analysis</button></div><ActionList actions={actions} videos={videos} busy={busy} changeStatus={changeStatus}/>
+            <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h3 className="mb-2 text-lg font-semibold">Performance diagnoses (FR-03)</h3>
+              <p className="mb-4 text-sm text-slate-400">Observed trends and supporting evidence, not proven causes or recommendations. Missing analytics are explicitly identified.</p>
+              {performanceDiagnoses.length === 0 ? <p className="text-slate-400">No performance diagnoses available.</p> : <div className="space-y-4">{performanceDiagnoses.map(d => {
+                const video = videos.find(v => v.id === d.videoId);
+                return <article key={d.videoId} className="rounded-lg border border-slate-700 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-medium">{video?.title ?? d.videoId}</h4><span className="rounded bg-slate-800 px-2 py-1 text-xs">{d.status.replaceAll("_", " ")}</span></div>
+                  <p className="mt-2 text-sm">{d.observation}</p>
+                  <p className="mt-1 text-xs text-slate-400">Format: {d.format.replaceAll("_", " ")} · Confidence: {Math.round(d.confidence * 100)}%</p>
+                  <p className="mt-2 text-xs text-slate-400">{d.hypothesis}</p>
+                  <details className="mt-3 text-sm"><summary className="cursor-pointer text-cyan-300">Evidence and missing data</summary>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-slate-300">{d.evidence.map((e,i) => <li key={i}>{e.metric.replaceAll("_", " ")}: {e.observed == null ? "unavailable" : e.observed.toLocaleString()} {e.baseline == null ? "" : `(peer baseline: ${e.baseline.toLocaleString()})`} — {e.window}. {e.interpretation}</li>)}</ul>
+                    <h5 className="mt-3 font-medium">Missing evidence</h5>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-slate-400">{d.missingEvidence.map((m,i) => <li key={i}>{m}</li>)}</ul>
+                  </details>
+                </article>;
+              })}</div>}
+            </section>
             <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
               <h3 className="mb-2 text-lg font-semibold">Analysis diagnostics</h3>
               <p className="mb-4 text-sm text-slate-400">Every synced video's current decision, including cases without an actionable recommendation. These are live evaluations; Refresh analysis persists actionable recommendations.</p>

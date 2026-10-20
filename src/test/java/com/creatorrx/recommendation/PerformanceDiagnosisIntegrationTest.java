@@ -9,6 +9,34 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class PerformanceDiagnosisIntegrationTest {
+    @Test void sparseRecentMetricsDoNotTriggerDecliningTraffic() throws Exception {
+        try(var db=new PostgreSQLContainer<>("postgres:16-alpine")) {
+            db.start();
+            Flyway.configure().dataSource(db.getJdbcUrl(),db.getUsername(),db.getPassword()).load().migrate();
+            UUID creator=UUID.randomUUID(), channel=UUID.randomUUID(), video=UUID.randomUUID();
+            try(var conn=DriverManager.getConnection(db.getJdbcUrl(),db.getUsername(),db.getPassword())) {
+                try(var st=conn.prepareStatement("INSERT INTO creator(id,google_subject) VALUES (?,'sparse-test')")) {
+                    st.setObject(1,creator); st.executeUpdate();
+                }
+                try(var st=conn.prepareStatement("INSERT INTO youtube_channel(id,creator_id,youtube_channel_id,title) VALUES (?,?,'UC_sparse','test')")) {
+                    st.setObject(1,channel); st.setObject(2,creator); st.executeUpdate();
+                }
+                try(var st=conn.prepareStatement("INSERT INTO video(id,channel_id,youtube_video_id,title,duration_seconds) VALUES (?,?,'sparse12345','test',600)")) {
+                    st.setObject(1,video); st.setObject(2,channel); st.executeUpdate();
+                }
+                try(var st=conn.prepareStatement("INSERT INTO video_daily_metric(video_id,metric_date,views,watch_minutes,average_view_duration) VALUES (?, CURRENT_DATE - 40, 200, 100, 30), (?, CURRENT_DATE - 10, 2, 1, 30)")) {
+                    st.setObject(1,video); st.setObject(2,video); st.executeUpdate();
+                }
+            }
+            var source=new PGSimpleDataSource();
+            source.setURL(db.getJdbcUrl()); source.setUser(db.getUsername()); source.setPassword(db.getPassword());
+            var result=new PerformanceDiagnosisService(source).forChannel(creator,channel).getFirst();
+            assertEquals("INSUFFICIENT_DATA",result.status());
+            assertEquals(0.0,result.confidence());
+            assertTrue(result.missingEvidence().stream().anyMatch(x->x.contains("21 observed")));
+        }
+    }
+
     @Test void diagnosesMissingDataWithoutFabricatingTrafficCausesAndEnforcesOwnership() throws Exception {
         try(var db=new PostgreSQLContainer<>("postgres:16-alpine")) {
             db.start();

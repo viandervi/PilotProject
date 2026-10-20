@@ -1,3 +1,5 @@
+export type PerformanceEvidence = { metric: string; observed: number | null; baseline: number | null; window: string; interpretation: string };
+export type PerformanceDiagnosis = { videoId: string; format: string; status: string; observation: string; hypothesis: string; confidence: number; evidence: PerformanceEvidence[]; missingEvidence: string[] };
 export type Channel = { id: string; title: string; youtubeChannelId: string; videoCount: number };
 export type Overview = { channels: Channel[]; totalVideos: number; totalRecommendations: number; openFix: number; openRevive: number; applied: number };
 export type Action = { videoId: string; decision: "FIX" | "REVIVE"; score: number; confidence: number; reasons: string[]; status: "OPEN" | "APPLIED" | "DISMISSED" };
