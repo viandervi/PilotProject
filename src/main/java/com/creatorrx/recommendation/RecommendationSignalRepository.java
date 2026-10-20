@@ -38,12 +38,12 @@ public class RecommendationSignalRepository {
                 WHERE v.channel_id = ?
                 GROUP BY v.id
             ), peers AS (
-                SELECT b.*, AVG(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_avg,
+                SELECT b.*, (SUM(b.avg_percentage) OVER (PARTITION BY b.cohort) - COALESCE(b.avg_percentage,0)) /\n                    NULLIF(COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) - CASE WHEN b.avg_percentage IS NULL THEN 0 ELSE 1 END, 0) AS peer_avg,
                     COUNT(b.avg_percentage) OVER (PARTITION BY b.cohort) AS peer_count
                 FROM base b
             )
             SELECT id, published_at, recent_views, previous_views, observed_days,
-                   avg_percentage, CASE WHEN peer_count >= 5 THEN peer_avg ELSE NULL END AS cohort_avg
+                   avg_percentage, CASE WHEN peer_count >= 6 THEN peer_avg ELSE NULL END AS cohort_avg
             FROM peers ORDER BY id
             """;
         var result = new ArrayList<VideoSignal>();
