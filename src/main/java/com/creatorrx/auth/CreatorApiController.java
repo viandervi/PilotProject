@@ -19,11 +19,13 @@ public class CreatorApiController {
     private final CreatorTokenProvider tokens;
     private final com.creatorrx.ingestion.ChannelDiscoveryService discovery;
     private final com.creatorrx.ingestion.ChannelSyncQueue queue;
+    private final com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue;
     public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens,
                                 com.creatorrx.ingestion.ChannelDiscoveryService discovery,
-                                com.creatorrx.ingestion.ChannelSyncQueue queue) {
+                                com.creatorrx.ingestion.ChannelSyncQueue queue,
+                                com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
-        this.discovery = discovery; this.queue = queue;
+        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue;
     }
 
     @Get("/me")
@@ -56,6 +58,14 @@ public class CreatorApiController {
         UUID creator = sessions.requireCreator(session);
         UUID channel = discovery.discover(creator);
         UUID job = queue.enqueue(creator, channel);
+        return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
+    }
+
+    @Post("/channels/analytics-sync")
+    public Map<String,String> analyticsSync(@CookieValue(value="creatorrx_session", defaultValue="") String session) throws Exception {
+        UUID creator = sessions.requireCreator(session);
+        UUID channel = discovery.discover(creator);
+        UUID job = analyticsQueue.enqueue(creator, channel);
         return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
     }
 
