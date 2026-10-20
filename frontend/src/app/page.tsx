@@ -3,12 +3,11 @@ import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
 import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic } from "@/lib/api";
 
-// Micronaut may serialize LocalDate as YYYY-M-D or YYYYMMDD without separators.
-// Parse calendar components explicitly to avoid browser-dependent Date parsing.
+// Accept ISO dates and compact dates emitted by some LocalDate serializers.
 function formatAnalyticsDate(value: string | null | undefined): string {
   if (!value) return "none";
-  const compact = value.replace(/-/g, "");
-  const match = /^(\\d{4})(\\d{1,2})(\\d{1,2})$/.exec(compact);
+  const normalized = value.replace(/-/g, "");
+  const match = /^([0-9]{4})([0-9]{1,2})([0-9]{1,2})$/.exec(normalized);
   if (!match) return value;
   const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
   const date = new Date(Date.UTC(year, month - 1, day));
