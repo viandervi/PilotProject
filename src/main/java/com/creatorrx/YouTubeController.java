@@ -14,24 +14,51 @@ import java.util.*;
 @ExecuteOn(TaskExecutors.BLOCKING)
 public class YouTubeController {
     private final GoogleGateway google;
-    public YouTubeController(GoogleGateway google) { this.google = google; }
+    private final io.micronaut.context.env.Environment environment;
+    private final com.creatorrx.auth.CreatorIdentityStore identities;
+    private final com.creatorrx.auth.GoogleIdentityVerifier verifier;
+    private final com.creatorrx.auth.OAuthCredentialStore credentials;
+    private final com.creatorrx.auth.CreatorSessionService sessions;
+    @jakarta.inject.Inject
+    public YouTubeController(GoogleGateway google, io.micronaut.context.env.Environment environment,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.CreatorIdentityStore identities,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.GoogleIdentityVerifier verifier,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.OAuthCredentialStore credentials,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.CreatorSessionService sessions) {
+        this.google = google; this.environment = environment; this.identities = identities;
+        this.verifier = verifier; this.credentials = credentials; this.sessions = sessions;
+    }
+    /** Preserves direct POC test construction; Micronaut uses the injected constructor. */
+    public YouTubeController(GoogleGateway google) {
+        this(google, null, null, null, null, null);
+    }
     @Get("/health") public Map<String,String> health() { return Map.of("status", "ok", "mode", "single-user-local-poc"); }
     @Get("/auth/google") public HttpResponse<?> auth() throws Exception { return HttpResponse.seeOther(URI.create(google.authorize())); }
-    @Get("/oauth/callback{?state,code}") public Map<String,String> callback(String state, String code) throws Exception {
-        google.callback(state, code); return Map.of("status", "connected", "next", "/youtube/channel");
+    @Get("/oauth/callback{?state,code}") public HttpResponse<?> callback(String state, String code) throws Exception {
+        if (environment != null && environment.getActiveNames().contains("database")) {
+            var exchange = google.exchangeForCreator(state, code);
+            String subject = verifier.verifySubject(exchange.idToken(), exchange.nonce());
+            UUID creatorId = identities.findOrCreate(subject);
+            credentials.save(creatorId, exchange.refreshToken());
+            String sessionId = sessions.create(creatorId);
+            return HttpResponse.ok(Map.of("status", "connected", "next", "/api/v1/me"))
+                .cookie(io.micronaut.http.cookie.Cookie.of("creatorrx_session", sessionId)
+                    .httpOnly(true).secure(true).path("/").sameSite(io.micronaut.http.cookie.SameSite.Strict));
+        }
+        google.callback(state, code); return HttpResponse.ok(Map.of("status", "connected", "next", "/youtube/channel"));
     }
     @Get("/youtube/channel") public JsonNode channel() throws Exception {
-        return google.get("www.googleapis.com/youtube/v3/channels", Map.of("part", "snippet,contentDetails,statistics", "mine", "true"));
+        requirePocMode(); return google.get("www.googleapis.com/youtube/v3/channels", Map.of("part", "snippet,contentDetails,statistics", "mine", "true"));
     }
     @Get("/youtube/videos{?pageToken}") public JsonNode videos(@QueryValue(defaultValue="") String pageToken) throws Exception {
-        JsonNode channels = channel().path("items");
+        requirePocMode(); JsonNode channels = channel().path("items");
         if (channels.isEmpty()) throw new IllegalStateException("No YouTube channel found for this Google account.");
         String uploads = channels.get(0).path("contentDetails").path("relatedPlaylists").path("uploads").asText();
         // Follow nextPageToken to enumerate the whole uploads playlist. Avoid costly search.list.
         return google.get("www.googleapis.com/youtube/v3/playlistItems", Map.of("part", "snippet,contentDetails", "playlistId", uploads, "maxResults", "50", "pageToken", pageToken));
     }
     @Get("/youtube/videos/{videoId}/details") public JsonNode details(String videoId) throws Exception {
-        video(videoId); return google.get("www.googleapis.com/youtube/v3/videos", Map.of("part", "snippet,contentDetails,statistics", "id", videoId));
+        requirePocMode(); video(videoId); return google.get("www.googleapis.com/youtube/v3/videos", Map.of("part", "snippet,contentDetails,statistics", "id", videoId));
     }
     static void video(String id) { if (!id.matches("[A-Za-z0-9_-]{11}")) throw new IllegalArgumentException("Expected an 11-character YouTube video ID."); }
     static Map<String,String> analyticsParams(String id, String start, String end, boolean retention) {
@@ -42,19 +69,19 @@ public class YouTubeController {
             "metrics", retention ? "audienceWatchRatio,relativeRetentionPerformance" : "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained");
     }
     @Get("/youtube/analytics/{videoId}{?startDate,endDate}") public JsonNode analytics(String videoId, String startDate, String endDate) throws Exception {
-        return google.get("youtubeanalytics.googleapis.com/v2/reports", analyticsParams(videoId, startDate, endDate, false));
+        requirePocMode(); return google.get("youtubeanalytics.googleapis.com/v2/reports", analyticsParams(videoId, startDate, endDate, false));
     }
     @Get("/youtube/analytics/{videoId}/retention{?startDate,endDate}") public JsonNode retention(String videoId, String startDate, String endDate) throws Exception {
         return google.get("youtubeanalytics.googleapis.com/v2/reports", analyticsParams(videoId, startDate, endDate, true));
     }
     @Get("/youtube/reporting/types{?pageToken}") public JsonNode types(@QueryValue(defaultValue="") String pageToken) throws Exception {
-        return google.get("youtubereporting.googleapis.com/v1/reportTypes", Map.of("pageToken", pageToken));
+        requirePocMode(); return google.get("youtubereporting.googleapis.com/v1/reportTypes", Map.of("pageToken", pageToken));
     }
     @Get("/youtube/reporting/jobs{?pageToken}") public JsonNode jobs(@QueryValue(defaultValue="") String pageToken) throws Exception {
         return google.get("youtubereporting.googleapis.com/v1/jobs", Map.of("pageToken", pageToken));
     }
     @Post("/youtube/reporting/reach{?reportTypeId}") public JsonNode reach(String reportTypeId) throws Exception {
-        // Discover actual availability; do not assume a report ID from the planning discussion exists.
+        requirePocMode(); // Discover actual availability; do not assume a report ID from the planning discussion exists.
         String page = "";
         do {
             JsonNode response = types(page);
@@ -69,12 +96,16 @@ public class YouTubeController {
     }
     static void resourceId(String id) { if (!id.matches("[A-Za-z0-9_-]+")) throw new IllegalArgumentException("Invalid report/job ID."); }
     @Get("/youtube/reporting/reports{?jobId,pageToken}") public JsonNode reports(String jobId, @QueryValue(defaultValue="") String pageToken) throws Exception {
-        resourceId(jobId); return google.get("youtubereporting.googleapis.com/v1/jobs/" + jobId + "/reports", Map.of("pageToken", pageToken));
+        requirePocMode(); resourceId(jobId); return google.get("youtubereporting.googleapis.com/v1/jobs/" + jobId + "/reports", Map.of("pageToken", pageToken));
     }
     @Get(value="/youtube/reporting/download/{jobId}/{reportId}", produces="text/csv") public String download(String jobId, String reportId) throws Exception {
-        resourceId(jobId); resourceId(reportId);
+        requirePocMode(); resourceId(jobId); resourceId(reportId);
         JsonNode report = google.get("youtubereporting.googleapis.com/v1/jobs/" + jobId + "/reports/" + reportId, Map.of());
         return google.download(report.path("downloadUrl").asText());
+    }
+    private void requirePocMode() {
+        if (environment != null && environment.getActiveNames().contains("database"))
+            throw new IllegalStateException("Legacy global-account endpoints are disabled in database mode; use authenticated creator-scoped APIs.");
     }
     @Error(global=true, exception=IllegalArgumentException.class) public HttpResponse<?> invalid(IllegalArgumentException e) {
         return HttpResponse.badRequest(Map.of("error", e.getMessage()));
