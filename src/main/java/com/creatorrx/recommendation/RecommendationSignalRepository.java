@@ -31,7 +31,7 @@ public class RecommendationSignalRepository {
             ), base AS (
                 SELECT v.id, v.published_at, v.youtube_video_id, r.early_retention,
                        COALESCE(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date), 0) AS recent_views,
-                       COALESCE(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 55 AND ?::date - 28), 0) AS previous_views,
+                       SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 55 AND ?::date - 28) AS previous_views,
                        COUNT(DISTINCT m.metric_date) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date) AS observed_days,
                        SUM(m.average_view_percentage * m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date)
                           / NULLIF(SUM(m.views) FILTER (WHERE m.metric_date BETWEEN ?::date - 27 AND ?::date), 0) AS avg_percentage,
@@ -70,7 +70,7 @@ public class RecommendationSignalRepository {
                         result.add(new VideoSignal(
                             rows.getObject("id", UUID.class),
                             published == null ? null : published.toInstant().atZone(ZoneOffset.UTC).toLocalDate(),
-                            rows.getLong("recent_views"), rows.getLong("previous_views"),
+                            rows.getLong("recent_views"), nullableLong(rows, "previous_views"),
                             nullableDouble(rows, "avg_percentage"), nullableDouble(rows, "cohort_avg"),
                             nullableDouble(rows, "early_retention"), nullableDouble(rows, "cohort_early"), rows.getInt("observed_days")));
                     }
@@ -80,7 +80,7 @@ public class RecommendationSignalRepository {
         return List.copyOf(result);
     }
 
-    private static Double nullableDouble(ResultSet rows, String name) throws Exception {
+    private static Long nullableLong(ResultSet rows, String name) throws Exception {\n        long value = rows.getLong(name);\n        return rows.wasNull() ? null : value;\n    }\n\n    private static Double nullableDouble(ResultSet rows, String name) throws Exception {
         double value = rows.getDouble(name);
         return rows.wasNull() ? null : value;
     }
