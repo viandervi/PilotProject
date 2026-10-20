@@ -22,7 +22,7 @@ class PerformanceDiagnosisIntegrationTest {
                     st.setObject(1,channel); st.setObject(2,creator); st.executeUpdate();
                 }
                 try(var st=conn.prepareStatement("INSERT INTO video(id,channel_id,youtube_video_id,title,duration_seconds) VALUES (?,?,'sparse12345','test',600)")) {
-                    st.setObject(1,video); st.executeUpdate();
+                    st.setObject(1,video); st.setObject(2,channel); st.executeUpdate();
                 }
                 try(var st=conn.prepareStatement("INSERT INTO video_daily_metric(video_id,metric_date,views) VALUES (?, CURRENT_DATE - 40, 200), (?, CURRENT_DATE - 10, 2)")) {
                     st.setObject(1,video); st.setObject(2,video); st.executeUpdate();
