@@ -68,8 +68,8 @@ public class RecommendationSignalRepository {
                 }
             }
             try (var stmt = connection.prepareStatement(sql)) {
-                for (int i=1; i<=12; i++) stmt.setObject(i, asOf);
-                stmt.setObject(13, channel);
+                for (int i=1; i<=14; i++) stmt.setObject(i, asOf);
+                stmt.setObject(15, channel);
                 try (var rows = stmt.executeQuery()) {
                     while (rows.next()) {
                         var published = rows.getTimestamp("published_at");
