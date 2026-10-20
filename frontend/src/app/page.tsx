@@ -3,6 +3,19 @@ import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
 import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic } from "@/lib/api";
 
+// Micronaut may serialize LocalDate as YYYY-M-D or YYYYMMDD without separators.
+// Parse calendar components explicitly to avoid browser-dependent Date parsing.
+function formatAnalyticsDate(value: string | null | undefined): string {
+  if (!value) return "none";
+  const compact = value.replace(/-/g, "");
+  const match = /^(\\d{4})(\\d{1,2})(\\d{1,2})$/.exec(compact);
+  if (!match) return value;
+  const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return value;
+  return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+}
+
 type View = "overview" | "videos" | "actions";
 export default function Home() {
   const [view, setView] = useState<View>("overview");
@@ -118,7 +131,7 @@ export default function Home() {
             <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
               <h3 className="mb-3 font-semibold">Data readiness</h3>
               <p className="mb-3 text-sm text-slate-400">Analytics: {coverage?.videosWithDailyMetrics ?? 0}/{coverage?.videos ?? 0} videos · Retention: {coverage?.videosWithRetention ?? 0}/{coverage?.videos ?? 0} videos</p>
-              <p className="mb-3 text-xs text-slate-400">Historical daily data: {coverage?.earliestDailyMetric ?? "none"} to {coverage?.latestDailyMetric ?? "none"} · Completed historical ranges: {coverage?.fetchedHistoricalRanges ?? 0} (including empty responses)</p>
+              <p className="mb-3 text-xs text-slate-400">Historical daily data: {formatAnalyticsDate(coverage?.earliestDailyMetric)} to {formatAnalyticsDate(coverage?.latestDailyMetric)} · Completed historical ranges: {coverage?.fetchedHistoricalRanges ?? 0} (including empty responses)</p>
               <div className="grid gap-2 sm:grid-cols-3">
                 {(["CHANNEL_SYNC", "ANALYTICS_SYNC", "RETENTION_SYNC"] as const).map(type => {
                   const job = jobs.find(j => j.syncType === type);
