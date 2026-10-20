@@ -104,7 +104,7 @@ public class YouTubeController {
         return google.download(report.path("downloadUrl").asText());
     }
     private void requirePocMode() {
-        if (environment.getActiveNames().contains("database"))
+        if (environment != null && environment.getActiveNames().contains("database"))
             throw new IllegalStateException("Legacy global-account endpoints are disabled in database mode; use authenticated creator-scoped APIs.");
     }
     @Error(global=true, exception=IllegalArgumentException.class) public HttpResponse<?> invalid(IllegalArgumentException e) {
