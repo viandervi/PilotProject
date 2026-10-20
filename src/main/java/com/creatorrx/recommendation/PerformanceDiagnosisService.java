@@ -31,14 +31,14 @@ public class PerformanceDiagnosisService {
         String sql = """
             WITH totals AS (
               SELECT v.id, v.duration_seconds,
-                COUNT(m.metric_date) FILTER (WHERE m.metric_date >= CURRENT_DATE - 29 AND m.metric_date < CURRENT_DATE - 1) AS days_recent,
-                COALESCE(SUM(m.views) FILTER (WHERE m.metric_date >= CURRENT_DATE - 29 AND m.metric_date < CURRENT_DATE - 1),0) AS recent_views,
-                SUM(m.views) FILTER (WHERE m.metric_date >= CURRENT_DATE - 57 AND m.metric_date < CURRENT_DATE - 29) AS previous_views,
+                COUNT(m.metric_date) FILTER (WHERE m.metric_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 29 AND m.metric_date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 1) AS days_recent,
+                COALESCE(SUM(m.views) FILTER (WHERE m.metric_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 29 AND m.metric_date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 1),0) AS recent_views,
+                SUM(m.views) FILTER (WHERE m.metric_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 57 AND m.metric_date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 29) AS previous_views,
                 COALESCE(SUM(m.views),0) AS historical_views,
                 MIN(m.metric_date) AS first_metric,
                 MAX(m.metric_date) AS last_metric,
-                SUM(m.average_view_percentage * m.views) FILTER (WHERE m.metric_date >= CURRENT_DATE - 29 AND m.metric_date < CURRENT_DATE - 1)
-                  / NULLIF(SUM(m.views) FILTER (WHERE m.metric_date >= CURRENT_DATE - 29 AND m.metric_date < CURRENT_DATE - 1),0) AS recent_retention,
+                SUM(m.average_view_percentage * m.views) FILTER (WHERE m.metric_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 29 AND m.metric_date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 1)
+                  / NULLIF(SUM(m.views) FILTER (WHERE m.metric_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 29 AND m.metric_date < (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - 1),0) AS recent_retention,
                 SUM(m.average_view_percentage * m.views) / NULLIF(SUM(m.views),0) AS historical_retention,
                 CASE WHEN v.duration_seconds IS NULL THEN 'UNKNOWN'
                      WHEN v.duration_seconds <= 180 THEN 'SHORT_OR_BRIEF'
@@ -94,6 +94,7 @@ public class PerformanceDiagnosisService {
             "available ingested history","View-weighted historical average"));
         if(days<7) missing.add("Fewer than seven observed recent metric days");
         if(previous==null) missing.add("Previous 28-day view comparison unavailable");
+        if(days<21) missing.add("Fewer than 21 observed recent metric days; gaps may represent missing reporting rather than zero views");
         if(retention==null) missing.add("Recent audience-retention average unavailable");
         if(peers<2) missing.add("At least two comparable videos with recent retention are required for peer comparison");
         if("SHORT_OR_BRIEF".equals(format)) missing.add("Duration alone cannot verify YouTube Shorts classification");
@@ -105,17 +106,17 @@ public class PerformanceDiagnosisService {
 
         String observation="No evidence-backed performance anomaly detected";
         String status="NO_CLEAR_ANOMALY";
-        if(previous!=null && previous>=30 && recent*2L<=previous && days>=7) {
+        if(previous!=null && previous>=30 && recent*2L<=previous && days>=21) {
             status="DECLINING_TRAFFIC";
             observation="Recent views fell by at least 50% versus the preceding 28 days";
-        } else if(retention!=null && peer!=null && peers>=2 && recent>=100 && retention<peer*0.75) {
+        } else if(retention!=null && peer!=null && peers>=2 && recent>=100 && days>=21 && retention<peer*0.75) {
             status="LOW_RELATIVE_RETENTION";
             observation="Recent average viewed percentage is below 75% of comparable-duration peers";
-        } else if(days<7) {
+        } else if(days<21) {
             status="INSUFFICIENT_DATA";
-            observation="Not enough observed recent days to assess recent performance";
+            observation="Insufficient observed recent days to assess recent performance reliably";
         }
-        double confidence=days<7?0:Math.min(0.85,0.3+0.25*Math.min(1,recent/100.0)
+        double confidence=days<21?0:Math.min(0.85,0.3+0.25*Math.min(1,recent/100.0)
             +0.2*(previous==null?0:1)+0.1*(peers>=2?1:0));
         return new Diagnosis(id,format,status,observation,
             "Potential contributing causes require reach, traffic-source and retention-curve evidence; no causal conclusion made",
