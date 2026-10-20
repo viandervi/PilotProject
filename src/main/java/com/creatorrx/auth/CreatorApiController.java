@@ -116,6 +116,16 @@ public class CreatorApiController {
         return quality.coverage(sessions.requireCreator(session), channelId);
     }
 
+    @jakarta.inject.Inject
+    com.creatorrx.recommendation.PerformanceDiagnosisService performanceDiagnosis;
+
+    @Get("/channels/{channelId}/performance-diagnoses")
+    public java.util.List<com.creatorrx.recommendation.PerformanceDiagnosisService.Diagnosis> performanceDiagnoses(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId) throws Exception {
+        return performanceDiagnosis.forChannel(sessions.requireCreator(session), channelId);
+    }
+
     @Get("/channels/{channelId}/recommendation-diagnostics")
     public java.util.List<com.creatorrx.recommendation.Recommendation> recommendationDiagnostics(
             @CookieValue(value="creatorrx_session", defaultValue="") String session,
