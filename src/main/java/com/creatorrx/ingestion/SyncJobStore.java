@@ -17,6 +17,7 @@ import java.util.UUID;
  */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class SyncJobStore {
     private final DataSource dataSource;
 
@@ -26,7 +27,6 @@ public class SyncJobStore {
 
     public record Claim(UUID id, UUID channelId, String syncType, UUID leaseToken, int attempt) {}
 
-    @Connectable
     public Optional<Claim> claimNext(Duration leaseDuration) throws SQLException {
         if (leaseDuration.isNegative() || leaseDuration.isZero()) throw new IllegalArgumentException("leaseDuration");
         String sql = """
