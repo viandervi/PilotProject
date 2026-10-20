@@ -1,6 +1,7 @@
 package com.creatorrx.dashboard;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.time.LocalDate;
@@ -11,6 +12,7 @@ import java.util.UUID;
 
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class DashboardQueryService {
     private final DataSource dataSource;
     public DashboardQueryService(DataSource dataSource) { this.dataSource = dataSource; }
