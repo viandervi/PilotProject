@@ -42,10 +42,13 @@ public class AnalyticsSyncProcessor implements SyncJobProcessor {
             WHERE channel_id = ? AND (? IS NULL OR youtube_video_id > ?)
             ORDER BY youtube_video_id LIMIT 500
             """;
+        while (true) {
+        int processed = 0;
         try (var connection = datasource.getConnection(); var stmt = connection.prepareStatement(sql)) {
             stmt.setObject(1, claim.channelId()); stmt.setString(2, cursor); stmt.setString(3, cursor);
             try (var rows = stmt.executeQuery()) {
                 while (rows.next()) {
+                    processed++;
                     UUID video = rows.getObject(1, UUID.class);
                     String youtubeId = rows.getString(2);
                     var published = rows.getTimestamp(3);
@@ -60,9 +63,15 @@ public class AnalyticsSyncProcessor implements SyncJobProcessor {
                             "metrics", "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained"));
                         int count = metrics.saveDaily(video, report);
                         if (!jobs.checkpoint(claim, youtubeId, count)) throw new IllegalStateException("Lost sync lease");
-                    } else if (!jobs.checkpoint(claim, youtubeId, 0)) throw new IllegalStateException("Lost sync lease");
+                        cursor = youtubeId;
+                    } else {
+                        if (!jobs.checkpoint(claim, youtubeId, 0)) throw new IllegalStateException("Lost sync lease");
+                        cursor = youtubeId;
+                    }
                 }
             }
+        }
+        if (processed < 500) break;
         }
     }
 }
