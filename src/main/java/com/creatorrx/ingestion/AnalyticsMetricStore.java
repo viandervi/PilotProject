@@ -16,6 +16,7 @@ public class AnalyticsMetricStore {
     public AnalyticsMetricStore(DataSource dataSource) { this.dataSource = dataSource; }
 
     public int saveDaily(UUID video, JsonNode report) throws Exception {
+        validateReport(report, "day", "views", "estimatedMinutesWatched", "averageViewDuration", "averageViewPercentage", "subscribersGained");
         int saved = 0;
         for (JsonNode row : report.path("rows")) {
             if (!row.isArray() || row.size() != 6) throw new IllegalArgumentException("Unexpected daily Analytics schema");
@@ -48,6 +49,7 @@ public class AnalyticsMetricStore {
     }
 
     public int saveRetention(UUID video, LocalDate start, LocalDate end, JsonNode report) throws Exception {
+        validateReport(report, "elapsedVideoTimeRatio", "audienceWatchRatio", "relativeRetentionPerformance");
         int saved = 0;
         for (JsonNode row : report.path("rows")) {
             if (!row.isArray() || row.size() != 3) throw new IllegalArgumentException("Unexpected retention schema");
@@ -70,6 +72,20 @@ public class AnalyticsMetricStore {
             saved++;
         }
         return saved;
+    }
+
+    static void validateReport(JsonNode report, String... columns) {
+        if (report == null || !report.isObject()) throw new IllegalArgumentException("Missing Analytics response");
+        JsonNode headers = report.path("columnHeaders");
+        if (!headers.isArray() || headers.size() != columns.length)
+            throw new IllegalArgumentException("Unexpected Analytics column headers");
+        for (int i = 0; i < columns.length; i++) {
+            if (!columns[i].equals(headers.get(i).path("name").asText()))
+                throw new IllegalArgumentException("Unexpected Analytics column order at " + i);
+        }
+        JsonNode rows = report.get("rows");
+        if (rows != null && !rows.isNull() && !rows.isArray())
+            throw new IllegalArgumentException("Unexpected Analytics rows");
     }
 
     private static BigDecimal decimal(JsonNode value) {

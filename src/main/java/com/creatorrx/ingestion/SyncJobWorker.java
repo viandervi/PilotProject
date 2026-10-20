@@ -40,12 +40,15 @@ public class SyncJobWorker {
             try {
                 if (processor.get() instanceof ChannelSyncProcessor channelSync) channelSync.process(job);
                 else if (processor.get() instanceof AnalyticsSyncProcessor analyticsSync) analyticsSync.process(job);
+                else if (processor.get() instanceof RetentionSyncProcessor retentionSync) retentionSync.process(job);
                 else processor.get().process(job.channelId());
                 if (!store.complete(job)) LOG.warn("Lost sync lease before completion: {}", job.id());
             } catch (Exception failure) {
-                // Failures are retryable by default; auth/validation exceptions need classification by future processors.
-                var delay = backoff(job.attempt());
-                if (!store.fail(job, true, delay, "PROCESSING_ERROR", failure.getClass().getSimpleName())) {
+                boolean retryable = !(failure instanceof SecurityException || failure instanceof IllegalArgumentException);
+                var delay = retryable ? backoff(job.attempt()) : Duration.ZERO;
+                String code = failure instanceof SecurityException ? "ACCESS_DENIED" :
+                    failure instanceof IllegalArgumentException ? "INVALID_DATA" : "PROCESSING_ERROR";
+                if (!store.fail(job, retryable, delay, code, failure.getClass().getSimpleName())) {
                     LOG.warn("Lost sync lease before failure transition: {}", job.id());
                 }
                 LOG.warn("Sync processing failed for job {}: {}", job.id(), failure.toString());
