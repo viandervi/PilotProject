@@ -20,12 +20,14 @@ public class CreatorApiController {
     private final com.creatorrx.ingestion.ChannelDiscoveryService discovery;
     private final com.creatorrx.ingestion.ChannelSyncQueue queue;
     private final com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue;
+    private final com.creatorrx.ingestion.RetentionSyncQueue retentionQueue;
     public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens,
                                 com.creatorrx.ingestion.ChannelDiscoveryService discovery,
                                 com.creatorrx.ingestion.ChannelSyncQueue queue,
-                                com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue) {
+                                com.creatorrx.ingestion.AnalyticsSyncQueue analyticsQueue,
+                                com.creatorrx.ingestion.RetentionSyncQueue retentionQueue) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
-        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue;
+        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue;
     }
 
     @Get("/me")
@@ -66,6 +68,14 @@ public class CreatorApiController {
         UUID creator = sessions.requireCreator(session);
         UUID channel = discovery.discover(creator);
         UUID job = analyticsQueue.enqueue(creator, channel);
+        return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
+    }
+
+    @Post("/channels/retention-sync")
+    public Map<String,String> retentionSync(@CookieValue(value="creatorrx_session", defaultValue="") String session) throws Exception {
+        UUID creator = sessions.requireCreator(session);
+        UUID channel = discovery.discover(creator);
+        UUID job = retentionQueue.enqueue(creator, channel);
         return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
     }
 
