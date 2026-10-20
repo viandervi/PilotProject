@@ -17,8 +17,13 @@ public class CreatorApiController {
     private final CreatorSessionService sessions;
     private final CreatorGoogleApiClient google;
     private final CreatorTokenProvider tokens;
-    public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens) {
+    private final com.creatorrx.ingestion.ChannelDiscoveryService discovery;
+    private final com.creatorrx.ingestion.ChannelSyncQueue queue;
+    public CreatorApiController(CreatorSessionService sessions, CreatorGoogleApiClient google, CreatorTokenProvider tokens,
+                                com.creatorrx.ingestion.ChannelDiscoveryService discovery,
+                                com.creatorrx.ingestion.ChannelSyncQueue queue) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
+        this.discovery = discovery; this.queue = queue;
     }
 
     @Get("/me")
@@ -44,6 +49,14 @@ public class CreatorApiController {
         if (uploads.isBlank()) throw new IllegalStateException("Missing uploads playlist");
         return google.get(creator, "youtube", "/youtube/v3/playlistItems",
             Map.of("part", "snippet,contentDetails", "playlistId", uploads, "maxResults", "50", "pageToken", pageToken));
+    }
+
+    @Post("/channels/sync")
+    public Map<String,String> sync(@CookieValue(value="creatorrx_session", defaultValue="") String session) throws Exception {
+        UUID creator = sessions.requireCreator(session);
+        UUID channel = discovery.discover(creator);
+        UUID job = queue.enqueue(creator, channel);
+        return Map.of("syncId", job.toString(), "channelId", channel.toString(), "status", "QUEUED");
     }
 
     @Post("/disconnect")
