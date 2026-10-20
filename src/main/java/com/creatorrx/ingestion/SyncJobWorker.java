@@ -40,6 +40,7 @@ public class SyncJobWorker {
             try {
                 if (processor.get() instanceof ChannelSyncProcessor channelSync) channelSync.process(job);
                 else if (processor.get() instanceof AnalyticsSyncProcessor analyticsSync) analyticsSync.process(job);
+                else if (processor.get() instanceof RetentionSyncProcessor retentionSync) retentionSync.process(job);
                 else processor.get().process(job.channelId());
                 if (!store.complete(job)) LOG.warn("Lost sync lease before completion: {}", job.id());
             } catch (Exception failure) {
