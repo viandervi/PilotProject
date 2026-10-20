@@ -5,6 +5,7 @@ on:
     branches:
       - feature/sprint1-data-foundation
       - feature/pr2-secure-oauth
+      - feature/pr3-youtube-ingestion
   pull_request:
     branches:
       - main
