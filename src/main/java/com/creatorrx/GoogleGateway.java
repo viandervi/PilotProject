@@ -30,7 +30,7 @@ public class GoogleGateway {
     private final Map<String, Pending> pending = new HashMap<>();
     private String accessToken, refreshToken;
     private Instant expires = Instant.EPOCH;
-    private record Pending(Instant created, String verifier) {}
+    private record Pending(Instant created, String verifier, String nonce) {}
     private static String env(String name) {
         String value = System.getenv(name);
         if (value == null || value.isBlank()) throw new IllegalStateException("Configure " + name + " before connecting Google.");
@@ -49,19 +49,33 @@ public class GoogleGateway {
         String clientId = env("GOOGLE_CLIENT_ID"); env("GOOGLE_CLIENT_SECRET");
         pending.entrySet().removeIf(e -> e.getValue().created().isBefore(Instant.now().minusSeconds(600)));
         if (pending.size() >= 100) throw new IllegalStateException("Too many pending logins; retry later.");
-        String state = random(), verifier = random();
-        pending.put(state, new Pending(Instant.now(), verifier));
+        String state = random(), verifier = random(), nonce = random();
+        pending.put(state, new Pending(Instant.now(), verifier, nonce));
         String challenge = Base64.getUrlEncoder().withoutPadding().encodeToString(java.security.MessageDigest.getInstance("SHA-256").digest(verifier.getBytes(StandardCharsets.US_ASCII)));
         return "https://accounts.google.com/o/oauth2/v2/auth?" + query(Map.of(
             "client_id", clientId, "redirect_uri", redirect(), "response_type", "code", "state", state,
-            "scope", "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly",
-            "access_type", "offline", "prompt", "consent", "code_challenge", challenge, "code_challenge_method", "S256"));
+            "scope", "openid https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly",
+            "access_type", "offline", "prompt", "consent", "nonce", nonce, "code_challenge", challenge, "code_challenge_method", "S256"));
     }
     public synchronized void callback(String state, String code) throws Exception {
         Pending login = pending.remove(state);
         if (login == null || login.created().isBefore(Instant.now().minusSeconds(600))) throw new IllegalArgumentException("Invalid or expired OAuth state. Start login again.");
         store(form(Map.of("code", code, "client_id", env("GOOGLE_CLIENT_ID"), "client_secret", env("GOOGLE_CLIENT_SECRET"), "redirect_uri", redirect(), "grant_type", "authorization_code", "code_verifier", login.verifier())), true);
     }
+    /** Database-mode OAuth exchange: no global token state is modified. */
+    public synchronized OAuthExchange exchangeForCreator(String state, String code) throws Exception {
+        Pending login = pending.remove(state);
+        if (login == null || login.created().isBefore(Instant.now().minusSeconds(600)))
+            throw new IllegalArgumentException("Invalid or expired OAuth state. Start login again.");
+        JsonNode response = form(Map.of("code", code, "client_id", env("GOOGLE_CLIENT_ID"),
+            "client_secret", env("GOOGLE_CLIENT_SECRET"), "redirect_uri", redirect(),
+            "grant_type", "authorization_code", "code_verifier", login.verifier()));
+        String refresh = response.path("refresh_token").asText("");
+        String idToken = response.path("id_token").asText("");
+        if (refresh.isBlank() || idToken.isBlank()) throw new IllegalStateException("Google login missing refresh or ID token; reconnect.");
+        return new OAuthExchange(idToken, refresh, login.nonce());
+    }
+    public record OAuthExchange(String idToken, String refreshToken, String nonce) {}
     private JsonNode form(Map<String,String> body) throws Exception {
         return send(HttpRequest.POST("https://oauth2.googleapis.com/token", query(body)).contentType(MediaType.APPLICATION_FORM_URLENCODED_TYPE));
     }
