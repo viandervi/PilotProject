@@ -7,6 +7,7 @@ import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 
@@ -54,16 +55,21 @@ public class AnalyticsSyncProcessor implements SyncJobProcessor {
                     UUID video = rows.getObject(1, UUID.class);
                     String youtubeId = rows.getString(2);
                     var published = rows.getTimestamp(3);
-                    LocalDate start = published == null ? LocalDate.now().minusDays(90)
-                        : published.toInstant().atZone(java.time.ZoneOffset.UTC).toLocalDate();
-                    start = start.isBefore(LocalDate.now().minusDays(90)) ? LocalDate.now().minusDays(90) : start;
-                    LocalDate end = LocalDate.now().minusDays(2);
+                    LocalDate end = LocalDate.now(ZoneOffset.UTC).minusDays(2);
+                    LocalDate start = historicalStart(published == null ? null :
+                        published.toInstant().atZone(ZoneOffset.UTC).toLocalDate(), end);
                     if (!start.isAfter(end)) {
-                        JsonNode report = google.get(creator, "analytics", "/v2/reports", Map.of(
-                            "ids", "channel==MINE", "startDate", start.toString(), "endDate", end.toString(),
-                            "filters", "video==" + youtubeId, "dimensions", "day",
-                            "metrics", "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained"));
-                        int count = metrics.saveDaily(video, report);
+                        int count = 0;
+                        // Keep requests bounded; each chunk is upserted before advancing the video cursor.
+                        for (LocalDate chunkStart = start; !chunkStart.isAfter(end); chunkStart = chunkStart.plusDays(90)) {
+                            LocalDate chunkEnd = chunkStart.plusDays(89);
+                            if (chunkEnd.isAfter(end)) chunkEnd = end;
+                            JsonNode report = google.get(creator, "analytics", "/v2/reports", Map.of(
+                                "ids", "channel==MINE", "startDate", chunkStart.toString(), "endDate", chunkEnd.toString(),
+                                "filters", "video==" + youtubeId, "dimensions", "day",
+                                "metrics", "views,estimatedMinutesWatched,averageViewDuration,averageViewPercentage,subscribersGained"));
+                            count += metrics.saveDaily(video, report);
+                        }
                         if (!jobs.checkpoint(claim, youtubeId, count)) throw new IllegalStateException("Lost sync lease");
                         cursor = youtubeId;
                     } else {
@@ -75,5 +81,11 @@ public class AnalyticsSyncProcessor implements SyncJobProcessor {
         }
         if (processed < 500) break;
         }
+    }
+
+    /** Default initial backfill: fourteen calendar months, bounded by publication date. */
+    static LocalDate historicalStart(LocalDate published, LocalDate end) {
+        LocalDate windowStart = end.plusDays(1).minusMonths(14);
+        return published != null && published.isAfter(windowStart) ? published : windowStart;
     }
 }
