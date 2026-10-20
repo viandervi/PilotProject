@@ -41,9 +41,15 @@ public class YouTubeController {
             UUID creatorId = identities.findOrCreate(subject);
             credentials.save(creatorId, exchange.refreshToken());
             String sessionId = sessions.create(creatorId);
-            return HttpResponse.ok(Map.of("status", "connected", "next", "/api/v1/me"))
+            String publicUrl = System.getenv().getOrDefault("CREATORRX_PUBLIC_URL", "http://localhost:3000");
+            URI destination = URI.create(publicUrl);
+            boolean localhost = "localhost".equals(destination.getHost()) || "127.0.0.1".equals(destination.getHost());
+            if (!"https".equals(destination.getScheme()) && !(localhost && "http".equals(destination.getScheme())))
+                throw new IllegalStateException("CREATORRX_PUBLIC_URL must use HTTPS outside localhost");
+            return HttpResponse.seeOther(URI.create(publicUrl.replaceAll("/+$", "") + "/"))
                 .cookie(io.micronaut.http.cookie.Cookie.of("creatorrx_session", sessionId)
-                    .httpOnly(true).secure(true).path("/").sameSite(io.micronaut.http.cookie.SameSite.Strict));
+                    .httpOnly(true).secure(!localhost || "https".equals(destination.getScheme()))
+                    .path("/").sameSite(io.micronaut.http.cookie.SameSite.Lax));
         }
         google.callback(state, code); return HttpResponse.ok(Map.of("status", "connected", "next", "/youtube/channel"));
     }

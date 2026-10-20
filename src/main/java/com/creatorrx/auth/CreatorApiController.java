@@ -15,6 +15,7 @@ import java.util.UUID;
 @ExecuteOn(TaskExecutors.BLOCKING)
 public class CreatorApiController {
     private final CreatorSessionService sessions;
+    private final com.creatorrx.dashboard.DashboardQueryService dashboard;
     private final CreatorGoogleApiClient google;
     private final CreatorTokenProvider tokens;
     private final com.creatorrx.ingestion.ChannelDiscoveryService discovery;
@@ -31,9 +32,23 @@ public class CreatorApiController {
                                 com.creatorrx.ingestion.RetentionSyncQueue retentionQueue,
                                 com.creatorrx.ingestion.AnalyticsDataQualityService quality,
                                 com.creatorrx.recommendation.RecommendationService recommendations,
-                                com.creatorrx.recommendation.RecommendationActionStore actions) {
+                                com.creatorrx.recommendation.RecommendationActionStore actions,
+                                com.creatorrx.dashboard.DashboardQueryService dashboard) {
         this.sessions = sessions; this.google = google; this.tokens = tokens;
-        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations; this.actions = actions;
+        this.discovery = discovery; this.queue = queue; this.analyticsQueue = analyticsQueue; this.retentionQueue = retentionQueue; this.quality = quality; this.recommendations = recommendations; this.actions = actions; this.dashboard = dashboard;
+    }
+
+    @Get("/dashboard/overview")
+    public com.creatorrx.dashboard.DashboardQueryService.Overview dashboardOverview(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session) throws Exception {
+        return dashboard.overview(sessions.requireCreator(session));
+    }
+
+    @Get("/channels/{channelId}/dashboard-videos")
+    public java.util.List<com.creatorrx.dashboard.DashboardQueryService.Video> dashboardVideos(
+            @CookieValue(value="creatorrx_session", defaultValue="") String session,
+            @PathVariable UUID channelId) throws Exception {
+        return dashboard.videos(sessions.requireCreator(session), channelId);
     }
 
     @Get("/me")
