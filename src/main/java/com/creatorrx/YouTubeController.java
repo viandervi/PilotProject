@@ -18,11 +18,11 @@ public class YouTubeController {
     private final com.creatorrx.auth.CreatorIdentityStore identities;
     private final com.creatorrx.auth.GoogleIdentityVerifier verifier;
     private final com.creatorrx.auth.OAuthCredentialStore credentials;
-    @io.micronaut.context.annotation.Inject
+    @jakarta.inject.Inject
     public YouTubeController(GoogleGateway google, io.micronaut.context.env.Environment environment,
-            @io.micronaut.context.annotation.Nullable com.creatorrx.auth.CreatorIdentityStore identities,
-            @io.micronaut.context.annotation.Nullable com.creatorrx.auth.GoogleIdentityVerifier verifier,
-            @io.micronaut.context.annotation.Nullable com.creatorrx.auth.OAuthCredentialStore credentials) {
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.CreatorIdentityStore identities,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.GoogleIdentityVerifier verifier,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.OAuthCredentialStore credentials) {
         this.google = google; this.environment = environment; this.identities = identities;
         this.verifier = verifier; this.credentials = credentials;
     }
