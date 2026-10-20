@@ -1,6 +1,7 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 /** Explicit coverage and sample counts: missing data is never interpreted as zero. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class AnalyticsDataQualityService {
     private final DataSource datasource;
     public AnalyticsDataQualityService(DataSource datasource) { this.datasource = datasource; }
