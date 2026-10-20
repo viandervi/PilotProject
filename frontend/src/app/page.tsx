@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, CircleAlert, ExternalLink, RefreshCw, TrendingUp, Video as VideoIcon, Wrench } from "lucide-react";
-import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage } from "@/lib/api";
+import { api, type Action, type Channel, type Overview, type Video, type SyncJob, type AnalyticsCoverage, type Diagnostic } from "@/lib/api";
 
 type View = "overview" | "videos" | "actions";
 export default function Home() {
@@ -11,6 +11,7 @@ export default function Home() {
   const [actions, setActions] = useState<Action[]>([]);
   const [videos, setVideos] = useState<Video[]>([]);
   const [jobs, setJobs] = useState<SyncJob[]>([]);
+  const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
   const [coverage, setCoverage] = useState<AnalyticsCoverage | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
@@ -26,14 +27,15 @@ export default function Home() {
       const first = summary.channels[0] ?? null;
       setChannel(first);
       if (first) {
-        const [nextActions, nextVideos, nextJobs, nextCoverage] = await Promise.all([
+        const [nextActions, nextVideos, nextJobs, nextCoverage, nextDiagnostics] = await Promise.all([
           api<Action[]>(`/channels/${first.id}/recommendation-actions`),
           api<Video[]>(`/channels/${first.id}/dashboard-videos`),
           api<SyncJob[]>(`/channels/${first.id}/sync-status`),
           api<AnalyticsCoverage>(`/channels/${first.id}/analytics-coverage`),
+          api<Diagnostic[]>(`/channels/${first.id}/recommendation-diagnostics`),
         ]);
-        setActions(nextActions); setVideos(nextVideos); setJobs(nextJobs); setCoverage(nextCoverage);
-      } else { setActions([]); setVideos([]); setJobs([]); setCoverage(null); }
+        setActions(nextActions); setVideos(nextVideos); setJobs(nextJobs); setCoverage(nextCoverage); setDiagnostics(nextDiagnostics);
+      } else { setActions([]); setVideos([]); setJobs([]); setCoverage(null); setDiagnostics([]); }
       setUnauthorized(false);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Could not load dashboard";
@@ -132,13 +134,25 @@ export default function Home() {
             <h3 className="mb-4 text-xl font-semibold">Priority actions</h3>
             <ActionList actions={openActions.slice(0,5)} videos={videos} busy={busy} changeStatus={changeStatus}/>
           </>}
-          {view === "actions" && <><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-400">Recommendations are ranked by estimated impact.</p><button onClick={() => void refreshRecommendations()} disabled={busy} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">Refresh analysis</button></div><ActionList actions={actions} videos={videos} busy={busy} changeStatus={changeStatus}/></>}
+          {view === "actions" && <><div className="mb-6 flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-slate-400">Recommendations are ranked by estimated impact.</p><button onClick={() => void refreshRecommendations()} disabled={busy} className="rounded-lg bg-cyan-500 px-4 py-2 font-semibold text-slate-950">Refresh analysis</button></div><ActionList actions={actions} videos={videos} busy={busy} changeStatus={changeStatus}/>
+            <section className="mt-8 rounded-xl border border-slate-800 bg-slate-900 p-5">
+              <h3 className="mb-2 text-lg font-semibold">Analysis diagnostics</h3>
+              <p className="mb-4 text-sm text-slate-400">Every synced video's current decision, including cases without an actionable recommendation. These are live evaluations; Refresh analysis persists actionable recommendations.</p>
+              {diagnostics.length === 0 ? <p className="text-slate-400">No videos available to evaluate.</p> : <div className="space-y-3">{diagnostics.map(d => {
+                const video = videos.find(v => v.id === d.videoId);
+                return <div key={d.videoId} className="rounded-lg border border-slate-700 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-medium">{video?.title ?? d.videoId}</span><span className="rounded bg-slate-800 px-2 py-1 text-xs">{d.decision.replace("_", " ")}</span></div>
+                  <p className="mt-1 text-xs text-slate-400">Confidence: {Math.round(d.confidence * 100)}%</p>
+                  <ul className="mt-2 list-disc pl-5 text-sm text-slate-400">{d.reasons.map((reason,i) => <li key={i}>{reason}</li>)}</ul>
+                </div>;
+              })}</div>}
+            </section></>}
           {view === "videos" && <div className="overflow-x-auto rounded-xl border border-slate-800"><table className="w-full text-left text-sm"><thead className="bg-slate-900 text-slate-400"><tr><th className="p-4">Video</th><th className="p-4">28-day views</th><th className="p-4">Avg. viewed</th></tr></thead><tbody>{videos.map(v=><tr key={v.id} className="border-t border-slate-800"><td className="p-4"><a className="inline-flex items-center gap-2 text-cyan-300 hover:underline" href={`https://www.youtube.com/watch?v=${encodeURIComponent(v.youtubeVideoId)}`} target="_blank" rel="noreferrer">{v.title}<ExternalLink size={14}/></a></td><td className="p-4">{v.views28d.toLocaleString()}</td><td className="p-4">{v.averageViewPercentage == null ? "—" : `${v.averageViewPercentage.toFixed(1)}%`}</td></tr>)}</tbody></table>{videos.length===0 && <p className="p-6 text-slate-400">No videos ingested yet. Sync your channel first.</p>}</div>}
         </>}
     </main>
   </div>;
 }
 function ActionList({actions,videos,busy,changeStatus}:{actions:Action[];videos:Video[];busy:boolean;changeStatus:(id:string,status:Action["status"])=>Promise<void>}) {
-  if (actions.length===0) return <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-slate-400">No recommendations yet. Run an analysis after syncing analytics and retention.</div>;
+  if (actions.length===0) return <div className="rounded-xl border border-slate-800 bg-slate-900 p-8 text-slate-400">No actionable recommendations right now. See Analysis diagnostics for per-video reasons.</div>;
   return <div className="space-y-3">{actions.map(a => { const video=videos.find(v=>v.id===a.videoId); return <article key={a.videoId} className="rounded-xl border border-slate-800 bg-slate-900 p-5"><div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0 flex-1"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded px-2 py-1 text-xs font-bold ${a.decision==="FIX" ? "bg-amber-500/20 text-amber-300" : "bg-emerald-500/20 text-emerald-300"}`}>{a.decision}</span><span className="text-xs text-slate-400">{a.status} · Confidence {Math.round(a.confidence*100)}%</span></div><h4 className="font-semibold">{video?.title ?? a.videoId}</h4><ul className="mt-2 space-y-1 text-sm text-slate-400">{a.reasons.map((reason,i)=><li key={i} className="flex items-start gap-2"><CircleAlert size={14} className="mt-1 shrink-0"/>{reason}</li>)}</ul></div>{a.status==="OPEN" && <div className="flex gap-2"><button disabled={busy} onClick={()=>void changeStatus(a.videoId,"APPLIED")} className="rounded-lg bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950">Mark applied</button><button disabled={busy} onClick={()=>void changeStatus(a.videoId,"DISMISSED")} className="rounded-lg border border-slate-700 px-3 py-2 text-sm">Dismiss</button></div>}</div></article>; })}</div>;
 }

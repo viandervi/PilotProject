@@ -32,6 +32,16 @@ class RecommendationEngineTest {
         assertEquals(INSUFFICIENT_DATA,
             engine.evaluate(signal(10, 5L, 10.0, 60.0, null, null, 3, 10), today).decision());
     }
+    @Test void explainsMissingCohortBaseline() {
+        var result = engine.evaluate(signal(1000, 200L, 45.0, null, null, null, 28, 20), today);
+        assertEquals(INSUFFICIENT_DATA, result.decision());
+        assertTrue(result.reasons().getFirst().contains("cohort baseline"));
+    }
+    @Test void explainsLowObservationCount() {
+        var result = engine.evaluate(signal(500, 200L, 40.0, 60.0, null, null, 3, 20), today);
+        assertEquals(INSUFFICIENT_DATA, result.decision());
+        assertTrue(result.reasons().getFirst().contains("3 observed days"));
+    }
     @Test void rankingIsDeterministic() {
         var a = signal(2000, 100L, 20.0, 60.0, null, null, 28, 20);
         var b = signal(1000, 900L, 60.0, 60.0, null, null, 28, 20);

@@ -23,7 +23,7 @@ public class RecommendationEngine {
     public Recommendation evaluate(VideoSignal signal, LocalDate today) {
         if (signal.observedDays() < MIN_DAYS || signal.recentViews() < MIN_RECENT_VIEWS)
             return new Recommendation(signal.videoId(), INSUFFICIENT_DATA, 0, 0,
-                List.of("Insufficient observation window or sample size"));
+                List.of(signal.observedDays() < MIN_DAYS ? "Only " + signal.observedDays() + " observed days; at least " + MIN_DAYS + " required" : "Only " + signal.recentViews() + " recent views; at least " + MIN_RECENT_VIEWS + " required"));
 
         var reasons = new ArrayList<String>();
         double confidence = Math.min(1, signal.recentViews() / 1000.0)
@@ -54,7 +54,7 @@ public class RecommendationEngine {
 
         if (signal.averageViewPercentage() == null || signal.cohortAverageViewPercentage() == null)
             return new Recommendation(signal.videoId(), INSUFFICIENT_DATA, 0, round(confidence),
-                List.of("Channel retention baseline unavailable"));
+                List.of("Comparable channel cohort baseline unavailable; need at least 6 videos with analytics in the same age cohort"));
 
         return new Recommendation(signal.videoId(), IGNORE, 0, round(confidence),
             List.of("No actionable performance anomaly detected"));
