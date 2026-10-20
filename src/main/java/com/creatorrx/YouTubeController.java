@@ -18,29 +18,34 @@ public class YouTubeController {
     private final com.creatorrx.auth.CreatorIdentityStore identities;
     private final com.creatorrx.auth.GoogleIdentityVerifier verifier;
     private final com.creatorrx.auth.OAuthCredentialStore credentials;
+    private final com.creatorrx.auth.CreatorSessionService sessions;
     @jakarta.inject.Inject
     public YouTubeController(GoogleGateway google, io.micronaut.context.env.Environment environment,
             @io.micronaut.core.annotation.Nullable com.creatorrx.auth.CreatorIdentityStore identities,
             @io.micronaut.core.annotation.Nullable com.creatorrx.auth.GoogleIdentityVerifier verifier,
-            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.OAuthCredentialStore credentials) {
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.OAuthCredentialStore credentials,
+            @io.micronaut.core.annotation.Nullable com.creatorrx.auth.CreatorSessionService sessions) {
         this.google = google; this.environment = environment; this.identities = identities;
-        this.verifier = verifier; this.credentials = credentials;
+        this.verifier = verifier; this.credentials = credentials; this.sessions = sessions;
     }
     /** Preserves direct POC test construction; Micronaut uses the injected constructor. */
     public YouTubeController(GoogleGateway google) {
-        this(google, null, null, null, null);
+        this(google, null, null, null, null, null);
     }
     @Get("/health") public Map<String,String> health() { return Map.of("status", "ok", "mode", "single-user-local-poc"); }
     @Get("/auth/google") public HttpResponse<?> auth() throws Exception { return HttpResponse.seeOther(URI.create(google.authorize())); }
-    @Get("/oauth/callback{?state,code}") public Map<String,String> callback(String state, String code) throws Exception {
+    @Get("/oauth/callback{?state,code}") public HttpResponse<?> callback(String state, String code) throws Exception {
         if (environment != null && environment.getActiveNames().contains("database")) {
             var exchange = google.exchangeForCreator(state, code);
             String subject = verifier.verifySubject(exchange.idToken(), exchange.nonce());
             UUID creatorId = identities.findOrCreate(subject);
             credentials.save(creatorId, exchange.refreshToken());
-            return Map.of("status", "connected", "creatorId", creatorId.toString(), "next", "authenticated creator-scoped APIs");
+            String sessionId = sessions.create(creatorId);
+            return HttpResponse.ok(Map.of("status", "connected", "next", "/api/v1/me"))
+                .cookie(io.micronaut.http.cookie.Cookie.of("creatorrx_session", sessionId)
+                    .httpOnly(true).secure(true).path("/").sameSite(io.micronaut.http.cookie.SameSite.Strict));
         }
-        google.callback(state, code); return Map.of("status", "connected", "next", "/youtube/channel");
+        google.callback(state, code); return HttpResponse.ok(Map.of("status", "connected", "next", "/youtube/channel"));
     }
     @Get("/youtube/channel") public JsonNode channel() throws Exception {
         requirePocMode(); return google.get("www.googleapis.com/youtube/v3/channels", Map.of("part", "snippet,contentDetails,statistics", "mine", "true"));
