@@ -2,6 +2,7 @@ package com.creatorrx.ingestion;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.math.BigDecimal;
@@ -11,6 +12,7 @@ import java.util.UUID;
 /** Validated idempotent YouTube Analytics daily and retention upserts. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class AnalyticsMetricStore {
     private final DataSource dataSource;
     public AnalyticsMetricStore(DataSource dataSource) { this.dataSource = dataSource; }

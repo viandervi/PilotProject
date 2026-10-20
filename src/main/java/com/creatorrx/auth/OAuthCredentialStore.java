@@ -1,6 +1,7 @@
 package com.creatorrx.auth;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -10,6 +11,7 @@ import java.util.UUID;
 /** Creator-scoped refresh-token storage; plaintext never reaches PostgreSQL. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class OAuthCredentialStore {
     private final DataSource datasource;
     private final RefreshTokenCipher cipher;

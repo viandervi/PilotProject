@@ -1,6 +1,7 @@
 package com.creatorrx.ingestion;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 /** Idempotent channel/video writes, guarded against cross-creator reassignment. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class ChannelCatalogStore {
     private final DataSource datasource;
     public ChannelCatalogStore(DataSource datasource) { this.datasource = datasource; }
