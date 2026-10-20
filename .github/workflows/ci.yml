@@ -6,6 +6,7 @@ on:
       - feature/sprint1-data-foundation
       - feature/pr2-secure-oauth
       - feature/pr3-youtube-ingestion
+      - feature/pr4-youtube-analytics
   pull_request:
     branches:
       - main
