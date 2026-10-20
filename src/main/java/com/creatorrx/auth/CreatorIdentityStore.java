@@ -1,6 +1,7 @@
 package com.creatorrx.auth;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.data.connection.annotation.Connectable;
 import jakarta.inject.Singleton;
 import javax.sql.DataSource;
 import java.util.UUID;
@@ -8,6 +9,7 @@ import java.util.UUID;
 /** Persist Google OIDC subject as the stable creator identity. */
 @Singleton
 @Requires(env = "database")
+@Connectable
 public class CreatorIdentityStore {
     private final DataSource dataSource;
     public CreatorIdentityStore(DataSource dataSource) { this.dataSource = dataSource; }
