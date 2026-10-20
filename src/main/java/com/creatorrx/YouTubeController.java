@@ -18,6 +18,7 @@ public class YouTubeController {
     private final com.creatorrx.auth.CreatorIdentityStore identities;
     private final com.creatorrx.auth.GoogleIdentityVerifier verifier;
     private final com.creatorrx.auth.OAuthCredentialStore credentials;
+    @io.micronaut.context.annotation.Inject
     public YouTubeController(GoogleGateway google, io.micronaut.context.env.Environment environment,
             @io.micronaut.context.annotation.Nullable com.creatorrx.auth.CreatorIdentityStore identities,
             @io.micronaut.context.annotation.Nullable com.creatorrx.auth.GoogleIdentityVerifier verifier,
@@ -25,10 +26,14 @@ public class YouTubeController {
         this.google = google; this.environment = environment; this.identities = identities;
         this.verifier = verifier; this.credentials = credentials;
     }
+    /** Preserves direct POC test construction; Micronaut uses the injected constructor. */
+    public YouTubeController(GoogleGateway google) {
+        this(google, null, null, null, null);
+    }
     @Get("/health") public Map<String,String> health() { return Map.of("status", "ok", "mode", "single-user-local-poc"); }
     @Get("/auth/google") public HttpResponse<?> auth() throws Exception { return HttpResponse.seeOther(URI.create(google.authorize())); }
     @Get("/oauth/callback{?state,code}") public Map<String,String> callback(String state, String code) throws Exception {
-        if (environment.getActiveNames().contains("database")) {
+        if (environment != null && environment.getActiveNames().contains("database")) {
             var exchange = google.exchangeForCreator(state, code);
             String subject = verifier.verifySubject(exchange.idToken(), exchange.nonce());
             UUID creatorId = identities.findOrCreate(subject);
