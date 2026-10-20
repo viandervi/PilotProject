@@ -23,7 +23,15 @@ dependencies {
 }
 java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
 application { mainClass = 'com.creatorrx.Application' }
-test { useJUnitPlatform() }
+test {
+    useJUnitPlatform()
+    testLogging {
+        events 'failed'
+        exceptionFormat 'full'
+        showStackTraces true
+        showCauses true
+    }
+}
 tasks.withType(JavaCompile).configureEach {
     options.compilerArgs += ['-parameters']
 }
